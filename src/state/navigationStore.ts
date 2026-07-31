@@ -14,8 +14,17 @@ export type Screen =
   | { name: "testPlayer" }
   | { name: "testRemote" }
   | { name: "details"; addonUrl: string; type: string; id: string }
-  | { name: "streamSelect"; addonUrl: string; type: string; id: string; title: string; nextEpisode?: NextEpisodeRef }
-  | { name: "player"; stream: ResolvedStream; contentId: string; episodeId?: string; title: string; type: string; nextEpisode?: NextEpisodeRef };
+  | { name: "streamSelect"; addonUrl: string; type: string; id: string; title: string; poster?: string; nextEpisode?: NextEpisodeRef }
+  | {
+      name: "player";
+      stream: ResolvedStream;
+      contentId: string;
+      episodeId?: string;
+      title: string;
+      type: string;
+      poster?: string;
+      nextEpisode?: NextEpisodeRef;
+    };
 
 /** Carried from Details through Stream Selection to the Player so "Next Episode" knows where to go without re-deriving it from meta. */
 export interface NextEpisodeRef {

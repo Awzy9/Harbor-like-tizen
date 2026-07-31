@@ -80,6 +80,7 @@ export function DetailsScreen({ addonUrl, type, id }: DetailsScreenProps) {
                             type,
                             id: video.id,
                             title: video.title || meta.name,
+                            poster: video.thumbnail ?? meta.poster,
                             nextEpisode,
                           })
                         }
@@ -101,7 +102,7 @@ export function DetailsScreen({ addonUrl, type, id }: DetailsScreenProps) {
               id="details-watch"
               className="details-screen__watch"
               autoFocus
-              onEnter={() => goTo({ name: "streamSelect", addonUrl, type, id: meta.id, title: meta.name })}
+              onEnter={() => goTo({ name: "streamSelect", addonUrl, type, id: meta.id, title: meta.name, poster: meta.poster })}
             >
               Watch
             </FocusableItem>

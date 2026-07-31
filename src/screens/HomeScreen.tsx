@@ -5,8 +5,16 @@ import { addonManager } from "@/stremio/addon-client/addonManagerInstance";
 import { addonClient } from "@/stremio/addon-client/addonClientInstance";
 import { aggregateCatalogRows, type CatalogRow } from "@/stremio/catalog/CatalogAggregator";
 import { cacheHomeCatalogRows, readCachedHomeCatalogRows } from "@/storage/homeCatalogCache";
+import { getAllPlaybackProgress, isPlaybackFinished } from "@/storage/playbackProgress";
 import { useNavigationStore } from "@/state/navigationStore";
 import "./HomeScreen.css";
+
+function getContinueWatching() {
+  const installedEnabled = new Set(addonManager.list().filter((a) => a.enabled).map((a) => a.transportUrl));
+  return getAllPlaybackProgress()
+    .filter((p) => !isPlaybackFinished(p) && installedEnabled.has(p.addonUrl))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+}
 
 type LoadState =
   | { kind: "loading" }
@@ -63,6 +71,7 @@ export function HomeScreen() {
   }
 
   const { rows, fromCache } = state;
+  const continueWatching = getContinueWatching();
 
   return (
     <div className="home-screen">
@@ -73,6 +82,23 @@ export function HomeScreen() {
             Refresh
           </FocusableItem>
         </p>
+      )}
+      {continueWatching.length > 0 && (
+        <section className="home-row">
+          <h2 className="home-row__title">Continue Watching</h2>
+          <div className="home-row__items">
+            {continueWatching.map((p) => (
+              <PosterTile
+                key={`${p.addonUrl}::${p.contentId}::${p.episodeId ?? ""}`}
+                id={`continue-${p.contentId}`}
+                meta={{ id: p.contentId, type: p.type, name: p.title, poster: p.poster }}
+                onEnter={() =>
+                  goTo({ name: "streamSelect", addonUrl: p.addonUrl, type: p.type, id: p.contentId, title: p.title, poster: p.poster })
+                }
+              />
+            ))}
+          </div>
+        </section>
       )}
       {rows.map((row) => (
         <section key={row.key} className="home-row">

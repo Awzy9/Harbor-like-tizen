@@ -11,10 +11,11 @@ interface StreamSelectionScreenProps {
   type: string;
   id: string;
   title: string;
+  poster?: string;
   nextEpisode?: NextEpisodeRef;
 }
 
-export function StreamSelectionScreen({ type, id, title, nextEpisode }: StreamSelectionScreenProps) {
+export function StreamSelectionScreen({ type, id, title, poster, nextEpisode }: StreamSelectionScreenProps) {
   const [result, setResult] = useState<StreamResolutionResult | undefined>(undefined);
   const goTo = useNavigationStore((s) => s.goTo);
 
@@ -56,7 +57,7 @@ export function StreamSelectionScreen({ type, id, title, nextEpisode }: StreamSe
                 id={`stream-${index}`}
                 className="stream-selection-screen__item"
                 autoFocus={index === 0}
-                onEnter={() => goTo({ name: "player", stream, contentId: id, title, type, nextEpisode })}
+                onEnter={() => goTo({ name: "player", stream, contentId: id, title, type, poster, nextEpisode })}
               >
                 <div className="stream-selection-screen__item-title">{stream.title ?? stream.name ?? "Stream"}</div>
                 <div className="text-dim stream-selection-screen__item-meta">

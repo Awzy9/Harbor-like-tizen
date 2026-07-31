@@ -66,8 +66,11 @@ What's implemented:
   lightweight `PlaybackCompatibility` pre-flight check. No HLS.js/DASH.js yet
   on purpose — Tizen's native HLS support is the first thing to prove out
   before reaching for a heavier library. **Resume** (`src/storage/playbackProgress.ts`)
-  saves position every ~7s plus on pause/unmount and seeks back on reopening
-  the same title.
+  saves position (plus denormalized addon/type/title/poster context) every
+  ~7s and on pause/unmount, and seeks back on reopening the same title. A
+  **Continue Watching** row on Home surfaces every in-progress (non-finished)
+  title whose add-on is still installed and enabled, sorted by recency,
+  linking straight to Stream Selection for that content id.
 - **Subtitles** (`src/stremio/subtitles/`, `src/player/SubtitleManager.ts`) —
   aggregates subtitles across every add-on declaring subtitle support for the
   type plus any embedded directly in the resolved stream; converts SRT to

@@ -103,6 +103,7 @@ function renderScreen(screen: Screen) {
           type={screen.type}
           id={screen.id}
           title={screen.title}
+          poster={screen.poster}
           nextEpisode={screen.nextEpisode}
         />
       );
@@ -113,6 +114,7 @@ function renderScreen(screen: Screen) {
           contentId={screen.contentId}
           episodeId={screen.episodeId}
           title={screen.title}
+          poster={screen.poster}
           type={screen.type}
           nextEpisode={screen.nextEpisode}
         />

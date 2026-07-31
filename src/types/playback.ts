@@ -6,6 +6,13 @@ export interface PlaybackProgress {
   position: number;
   duration: number;
   updatedAt: number;
+  // Denormalized display/resume context, saved alongside progress so
+  // "Continue Watching" can render and re-enter playback without a network
+  // round-trip just to look the title back up.
+  addonUrl: string;
+  type: string;
+  title: string;
+  poster?: string;
 }
 
 export interface ResolvedStream {

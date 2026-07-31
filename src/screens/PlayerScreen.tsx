@@ -5,7 +5,7 @@ import { useBackHandler } from "@/navigation/FocusManager";
 import { useNavigationStore, type NextEpisodeRef } from "@/state/navigationStore";
 import type { PlaybackState, AudioTrackInfo } from "@/types/player";
 import type { ResolvedStream } from "@/types/playback";
-import { getPlaybackProgress, savePlaybackProgress } from "@/storage/playbackProgress";
+import { getPlaybackProgress, savePlaybackProgress, RESUME_END_GUARD_SECONDS } from "@/storage/playbackProgress";
 import { addonManager } from "@/stremio/addon-client/addonManagerInstance";
 import { addonClient } from "@/stremio/addon-client/addonClientInstance";
 import { aggregateSubtitles, type AggregatedSubtitle } from "@/stremio/subtitles/SubtitleAggregator";
@@ -18,18 +18,17 @@ interface PlayerScreenProps {
   episodeId?: string;
   title: string;
   type: string;
+  poster?: string;
   nextEpisode?: NextEpisodeRef;
 }
 
 const PROGRESS_SAVE_INTERVAL_MS = 7000;
 const SEEK_STEP_SECONDS = 10;
-// Don't bother resuming into the last few seconds — that's "finished", not "in progress".
-const RESUME_END_GUARD_SECONDS = 5;
 const NEXT_EPISODE_COUNTDOWN_SECONDS = 8;
 
 type Overlay = "none" | "subtitles" | "audio";
 
-export function PlayerScreen({ stream, contentId, episodeId, title, type, nextEpisode }: PlayerScreenProps) {
+export function PlayerScreen({ stream, contentId, episodeId, title, type, poster, nextEpisode }: PlayerScreenProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<TizenVideoPlayer | null>(null);
   const [state, setState] = useState<PlaybackState>({ status: "idle", currentTime: 0, duration: 0 });
@@ -90,6 +89,10 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, nextEp
           position: finalState.currentTime,
           duration: finalState.duration,
           updatedAt: Date.now(),
+          addonUrl: stream.addonId,
+          type,
+          title,
+          poster,
         });
       }
       player.destroy();
@@ -102,11 +105,21 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, nextEp
     const interval = setInterval(() => {
       const s = playerRef.current?.getState();
       if (s && s.duration > 0) {
-        savePlaybackProgress({ contentId, episodeId, position: s.currentTime, duration: s.duration, updatedAt: Date.now() });
+        savePlaybackProgress({
+          contentId,
+          episodeId,
+          position: s.currentTime,
+          duration: s.duration,
+          updatedAt: Date.now(),
+          addonUrl: stream.addonId,
+          type,
+          title,
+          poster,
+        });
       }
     }, PROGRESS_SAVE_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [contentId, episodeId]);
+  }, [contentId, episodeId, stream.addonId, type, title, poster]);
 
   useEffect(() => {
     if (state.status === "ended" && nextEpisode && !nextEpisodeDismissedRef.current) {
