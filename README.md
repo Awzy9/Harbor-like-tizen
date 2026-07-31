@@ -293,11 +293,13 @@ automated with someone else's private certificate.
    certificate. **Back this up somewhere safe** — losing it means you can't
    sign updates compatible with whatever's already installed on the TV.
 3. **Regenerate `config.xml`'s app identity to match your certificate.**
-   `tizen:application id="HbrTzn00001.HarborLikeTizen"` and
-   `package="HbrTzn00001"` in `config.xml` are placeholders. Tizen Studio's
+   `tizen:application`'s `id` and `package` attributes must carry the
+   10-character package prefix tied to your own certificate — Tizen Studio's
    "New Tizen Project" flow (or the Certificate Manager) will show/generate
-   the correct 10-character package prefix tied to your certificate —
-   update both attributes in `config.xml` to match before packaging.
+   it. `config.xml` here already carries one real profile's prefix
+   (`SAgexl9TGi`); if you're signing with a *different* certificate, generate
+   your own prefix the same way and swap both attributes to match — a
+   mismatch here is the most common cause of a failed install/signing step.
 4. **Enable Developer Mode on the TV.** Smart Hub → Apps → (on the Apps
    screen) open the app settings/menu → enter `12345` → toggle Developer IP
    / Developer Mode ON → enter your computer's IP address when prompted →

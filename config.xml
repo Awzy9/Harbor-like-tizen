@@ -4,14 +4,8 @@
         id="https://github.com/awzy9/harbor-like-tizen"
         version="0.1.0"
         viewmodes="maximized">
-    <!--
-      tizen:application id is a placeholder ("HbrTzn00001") — Tizen requires
-      the 10-character package prefix to match the certificate you sign with.
-      Regenerate this via Tizen Studio / the Certificate Manager for your own
-      Samsung developer account before packaging a real .wgt (see README).
-    -->
-    <tizen:application id="HbrTzn00001.HarborLikeTizen"
-                        package="HbrTzn00001"
+    <tizen:application id="SAgexl9TGi.HarborLikeTizen"
+                        package="SAgexl9TGi"
                         required_version="6.0"/>
 
     <name>Harbor-like Tizen</name>
