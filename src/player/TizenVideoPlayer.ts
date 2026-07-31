@@ -1,6 +1,7 @@
 import type Hls from "hls.js";
 import type { MediaPlayerClass } from "dashjs";
 import type { AudioTrackInfo, PlaybackState, SubtitleTrackInfo } from "@/types/player";
+import { createPlaybackError, type PlaybackError } from "@/types/playbackError";
 import { checkPlaybackCompatibility } from "./PlaybackCompatibility";
 import { listAudioTracks, selectAudioTrack } from "./AudioManager";
 import { TorrentStreamManager } from "./TorrentStreamManager";
@@ -62,7 +63,7 @@ export class TizenVideoPlayer {
     this.video.addEventListener("pause", () => this.setStatus({ status: "paused" }));
     this.video.addEventListener("ended", () => this.setStatus({ status: "ended" }));
     this.video.addEventListener("error", () =>
-      this.setStatus({ status: "error", error: describeMediaError(this.video.error) }),
+      this.setStatus({ status: "error", error: classifyMediaError(this.video.error) }),
     );
     this.video.addEventListener("timeupdate", () => this.updateTime());
   }
@@ -108,7 +109,7 @@ export class TizenVideoPlayer {
 
     const compatibility = checkPlaybackCompatibility(url);
     if (compatibility.verdict === "UNSUPPORTED") {
-      this.setStatus({ status: "error", error: `Unsupported stream: ${compatibility.reason}` });
+      this.setStatus({ status: "error", error: createPlaybackError("UNSUPPORTED_CONTAINER", compatibility.reason) });
       return;
     }
 
@@ -149,7 +150,8 @@ export class TizenVideoPlayer {
     manager.render(this.video, infoHash, fileIdx, sources).catch((err: unknown) => {
       if (token !== this.loadToken) return; // superseded by a newer load()/stop()
       const message = err instanceof Error ? err.message : String(err);
-      this.setStatus({ status: "error", error: `Torrent error: ${message}` });
+      const category = message.startsWith("Timed out") ? "TIMEOUT" : "TORRENT_ERROR";
+      this.setStatus({ status: "error", error: createPlaybackError(category, message) });
     });
   }
 
@@ -170,7 +172,7 @@ export class TizenVideoPlayer {
     this.hls = hls;
     hls.on(Hls.Events.ERROR, (_event, data) => {
       if (!data.fatal) return; // hls.js recovers from most non-fatal errors (segment retries, etc.) on its own
-      this.setStatus({ status: "error", error: `HLS error: ${data.details}` });
+      this.setStatus({ status: "error", error: classifyHlsError(data) });
     });
     hls.loadSource(url);
     hls.attachMedia(this.video);
@@ -186,7 +188,7 @@ export class TizenVideoPlayer {
     const dash = MediaPlayer().create();
     this.dash = dash;
     dash.on("error", (e: unknown) => {
-      this.setStatus({ status: "error", error: `DASH error: ${describeDashError(e)}` });
+      this.setStatus({ status: "error", error: createPlaybackError("DASH_ERROR", describeDashError(e)) });
     });
     dash.initialize(this.video, url, false);
     this.mseBackendLoading = false;
@@ -198,7 +200,8 @@ export class TizenVideoPlayer {
     this.mseBackendLoading = false;
     if (token !== this.loadToken) return;
     const message = err instanceof Error ? err.message : String(err);
-    this.setStatus({ status: "error", error: `${backend} backend failed to load: ${message}` });
+    // Failing to even fetch the hls.js/dash.js chunk is a network problem, not a stream-content problem.
+    this.setStatus({ status: "error", error: createPlaybackError("NETWORK_ERROR", `${backend} backend failed to load: ${message}`) });
   }
 
   private flushPendingPlay(): void {
@@ -328,13 +331,27 @@ function describeDashError(e: unknown): string {
   return "unknown";
 }
 
-function describeMediaError(error: MediaError | null): string {
-  if (!error) return "Unknown playback error";
-  const codes: Record<number, string> = {
-    [MediaError.MEDIA_ERR_ABORTED]: "Playback aborted",
-    [MediaError.MEDIA_ERR_NETWORK]: "Network error",
-    [MediaError.MEDIA_ERR_DECODE]: "Decode error (unsupported codec?)",
-    [MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED]: "Source not supported",
-  };
-  return codes[error.code] ?? `Media error code ${error.code}`;
+/** Maps the native <video> MediaError code to a playback error category — MEDIA_ERR_DECODE almost always means an unsupported codec, not a generic failure. */
+function classifyMediaError(error: MediaError | null): PlaybackError {
+  if (!error) return createPlaybackError("UNKNOWN_ERROR");
+  switch (error.code) {
+    case MediaError.MEDIA_ERR_ABORTED:
+      return createPlaybackError("MEDIA_ERROR", "Playback aborted");
+    case MediaError.MEDIA_ERR_NETWORK:
+      return createPlaybackError("NETWORK_ERROR", "Native <video> network error");
+    case MediaError.MEDIA_ERR_DECODE:
+      return createPlaybackError("UNSUPPORTED_CODEC", "Decode error — likely an unsupported codec");
+    case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+      return createPlaybackError("UNSUPPORTED_CONTAINER", "Source not supported");
+    default:
+      return createPlaybackError("MEDIA_ERROR", `Media error code ${error.code}`);
+  }
+}
+
+/** Maps an hls.js fatal ErrorData to a playback error category. hls.js's own `type`/`details` fields already distinguish network vs. media vs. manifest-parsing failures — this just translates that into our taxonomy instead of re-deriving it. */
+function classifyHlsError(data: { type: string; details: string }): PlaybackError {
+  if (data.details.toLowerCase().includes("manifest")) return createPlaybackError("MANIFEST_ERROR", data.details);
+  if (data.type === "networkError") return createPlaybackError("NETWORK_ERROR", data.details);
+  if (data.type === "mediaError") return createPlaybackError("MEDIA_ERROR", data.details);
+  return createPlaybackError("HLS_ERROR", data.details);
 }

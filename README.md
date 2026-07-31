@@ -114,6 +114,28 @@ What's implemented:
   **Continue Watching** row on Home surfaces every in-progress (non-finished)
   title whose add-on is still installed and enabled, sorted by recency,
   linking straight to Stream Selection for that content id.
+- **Device capabilities & Diagnostics** (`src/tizen/deviceCapabilities.ts`,
+  Settings → Developer Tools → Diagnostics) — real, feature-detected (never
+  hardcoded) codec/HLS/DASH/HDR/network capabilities via `canPlayType()`/
+  `matchMedia()`/the Network Information API, used to rank streams (below)
+  and shown on a diagnostics page with Test Network/Video/HLS/DASH/Subtitles
+  buttons that exercise the real playback/network paths, plus a
+  centralized logger (`src/services/logger.ts`) feeding its log view.
+- **Automatic playback fallback** (`src/player/PlaybackFallbackManager.ts`) —
+  Stream Selection hands the Player screen the *whole* ranked stream list
+  (chosen stream first), and if one fails before it starts playing, the
+  manager automatically tries the next-ranked stream — up to 3 total
+  attempts — showing "Trying another source…" and, if every attempt fails,
+  an "Unable to find a playable source" screen with Try Another Stream/
+  Return actions, instead of leaving the user stuck on a dead player.
+  Playback errors are classified into a structured taxonomy
+  (`src/types/playbackError.ts`: NETWORK_ERROR, UNSUPPORTED_CODEC,
+  MANIFEST_ERROR, TORRENT_ERROR, etc.) so both the fallback manager and the
+  UI get an actual reason, not a generic "Playback error." `StreamRanker`
+  factors in device codec/HDR support (parsed the same best-effort way as
+  quality) so a stream the TV can't decode ranks below one it can, and
+  Stream Selection shows a RECOMMENDED badge plus quality/codec/HDR/
+  Direct-or-Torrent badges instead of a single quality string.
 - **Subtitles** (`src/stremio/subtitles/`, `src/player/SubtitleManager.ts`) —
   aggregates subtitles across every add-on declaring subtitle support for the
   type plus any embedded directly in the resolved stream; converts SRT to

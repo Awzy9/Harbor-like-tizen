@@ -1,6 +1,7 @@
 import type { AddonClient } from "@/stremio/addon-client/AddonClient";
 import type { InstalledAddon } from "@/types/addon";
 import type { ResolvedStream } from "@/types/playback";
+import { getDeviceCapabilities } from "@/tizen/deviceCapabilities";
 import { normalizeStreams } from "./StreamNormalizer";
 import { rankStreams } from "./StreamRanker";
 
@@ -49,5 +50,5 @@ export async function resolveStreams(
     }
   });
 
-  return { streams: rankStreams(streams), failedAddons };
+  return { streams: rankStreams(streams, getDeviceCapabilities()), failedAddons };
 }

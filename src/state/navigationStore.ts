@@ -14,11 +14,15 @@ export type Screen =
   | { name: "account" }
   | { name: "testPlayer" }
   | { name: "testRemote" }
+  | { name: "diagnostics" }
   | { name: "details"; addonUrl: string; type: string; id: string }
   | { name: "streamSelect"; addonUrl: string; type: string; id: string; title: string; poster?: string; nextEpisode?: NextEpisodeRef }
   | {
       name: "player";
-      stream: ResolvedStream;
+      /** Ranked fallback queue — the user's chosen stream first, followed by the remaining ranked candidates (see PlaybackFallbackManager). */
+      streams: ResolvedStream[];
+      /** The meta add-on this content came from, so "Try Another Stream" can return to the same Stream Selection screen. */
+      addonUrl: string;
       contentId: string;
       episodeId?: string;
       title: string;

@@ -1,3 +1,5 @@
+import type { PlaybackError } from "./playbackError";
+
 export interface SubtitleTrackInfo {
   id: string;
   label: string;
@@ -18,7 +20,7 @@ export interface PlaybackState {
   status: PlaybackStatus;
   currentTime: number;
   duration: number;
-  error?: string;
+  error?: PlaybackError;
 }
 
 export type PlaybackEvent =

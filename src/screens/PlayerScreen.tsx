@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { TizenVideoPlayer } from "@/player/TizenVideoPlayer";
+import { PlaybackFallbackManager, type FallbackStatus } from "@/player/PlaybackFallbackManager";
 import { FocusableItem } from "@/components/FocusableItem";
 import { useBackHandler } from "@/navigation/FocusManager";
 import { useNavigationStore, type NextEpisodeRef } from "@/state/navigationStore";
@@ -13,7 +13,9 @@ import { loadSubtitleTrack } from "@/player/SubtitleManager";
 import "./PlayerScreen.css";
 
 interface PlayerScreenProps {
-  stream: ResolvedStream;
+  /** Ranked fallback queue — streams[0] is the user's chosen stream (see StreamSelectionScreen). */
+  streams: ResolvedStream[];
+  addonUrl: string;
   contentId: string;
   episodeId?: string;
   title: string;
@@ -29,9 +31,9 @@ const NEXT_EPISODE_COUNTDOWN_SECONDS = 8;
 type Overlay = "none" | "subtitles" | "audio";
 type Status = Pick<PlaybackState, "status" | "error">;
 
-export function PlayerScreen({ stream, contentId, episodeId, title, type, poster, nextEpisode }: PlayerScreenProps) {
+export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, type, poster, nextEpisode }: PlayerScreenProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<TizenVideoPlayer | null>(null);
+  const managerRef = useRef<PlaybackFallbackManager | null>(null);
   // Only status/error live in React state — they change rarely (on real
   // transitions). currentTime/duration update several times a second via
   // timeupdate; routing those through React state would re-render the whole
@@ -40,6 +42,14 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
   // direct DOM writes in the onTimeUpdate subscription instead (see the
   // effect below) — same fix as src/navigation for the same reason.
   const [status, setStatus] = useState<Status>({ status: "idle" });
+  const [fallbackStatus, setFallbackStatus] = useState<FallbackStatus | undefined>(undefined);
+  // Which stream in the queue is actually loaded right now — tracked
+  // separately from `streams[0]` because PlaybackFallbackManager may have
+  // moved on to a later candidate. Read via ref inside the save-progress
+  // paths so those closures (created once, at mount) see the current value.
+  const [currentStream, setCurrentStream] = useState<ResolvedStream>(streams[0]);
+  const currentStreamRef = useRef(currentStream);
+  currentStreamRef.current = currentStream;
   const hasResumedRef = useRef(false);
   const goTo = useNavigationStore((s) => s.goTo);
 
@@ -69,15 +79,14 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
 
   useEffect(() => {
     if (!containerRef.current) return;
-    if (stream.protocol === "http" && !stream.url) return;
-    if (stream.protocol === "torrent" && !stream.infoHash) return;
-    const player = new TizenVideoPlayer(containerRef.current);
-    playerRef.current = player;
+
+    const manager = new PlaybackFallbackManager(containerRef.current, streams);
+    managerRef.current = manager;
     hasResumedRef.current = false;
 
-    const unsubscribeStatus = player.onStatusChange(setStatus);
+    const unsubscribeStatus = manager.videoPlayer.onStatusChange(setStatus);
 
-    const unsubscribeTime = player.onTimeUpdate(({ currentTime, duration }) => {
+    const unsubscribeTime = manager.videoPlayer.onTimeUpdate(({ currentTime, duration }) => {
       if (progressFillRef.current) {
         progressFillRef.current.style.width = `${duration > 0 ? (currentTime / duration) * 100 : 0}%`;
       }
@@ -87,26 +96,25 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
 
       if (!hasResumedRef.current && duration > 0) {
         hasResumedRef.current = true;
-        const saved = getPlaybackProgress(contentId, episodeId);
-        if (saved && saved.position > 0 && saved.position < saved.duration - RESUME_END_GUARD_SECONDS) {
-          player.seek(saved.position);
-        }
         // Audio tracks are only enumerable once the media has metadata.
-        setAudioTracks(player.listAudioTracks());
+        setAudioTracks(manager.videoPlayer.listAudioTracks());
       }
     });
 
-    if (stream.protocol === "torrent" && stream.infoHash) {
-      player.loadTorrent(stream.infoHash, stream.fileIdx, stream.sources);
-    } else if (stream.url) {
-      player.load(stream.url);
-    }
-    player.play();
+    const unsubscribeFallback = manager.onFallback((fbStatus) => {
+      setFallbackStatus(fbStatus);
+      if (fbStatus.phase === "trying") setCurrentStream(fbStatus.stream);
+    });
+
+    const saved = getPlaybackProgress(contentId, episodeId);
+    const resumeSeconds = saved && saved.position > 0 && saved.position < saved.duration - RESUME_END_GUARD_SECONDS ? saved.position : 0;
+    manager.start(resumeSeconds);
 
     return () => {
       unsubscribeStatus();
       unsubscribeTime();
-      const finalState = player.getState();
+      unsubscribeFallback();
+      const finalState = manager.videoPlayer.getState();
       if (finalState.duration > 0) {
         savePlaybackProgress({
           contentId,
@@ -114,21 +122,25 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
           position: finalState.currentTime,
           duration: finalState.duration,
           updatedAt: Date.now(),
-          addonUrl: stream.addonId,
+          addonUrl: currentStreamRef.current.addonId,
           type,
           title,
           poster,
         });
       }
-      player.destroy();
+      manager.destroy();
       if (activeVttUrlRef.current) URL.revokeObjectURL(activeVttUrlRef.current);
     };
+    // Only re-runs if this component instance is reused for a different title
+    // (it isn't — App.tsx keys the Player screen by contentId/episodeId so a
+    // new title always remounts fresh); intentionally not re-running on every
+    // `streams` prop identity change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stream.url, stream.infoHash]);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const s = playerRef.current?.getState();
+      const s = managerRef.current?.videoPlayer.getState();
       if (s && s.duration > 0) {
         savePlaybackProgress({
           contentId,
@@ -136,7 +148,7 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
           position: s.currentTime,
           duration: s.duration,
           updatedAt: Date.now(),
-          addonUrl: stream.addonId,
+          addonUrl: currentStreamRef.current.addonId,
           type,
           title,
           poster,
@@ -144,7 +156,7 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
       }
     }, PROGRESS_SAVE_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [contentId, episodeId, stream.addonId, type, title, poster]);
+  }, [contentId, episodeId, type, title, poster]);
 
   useEffect(() => {
     if (status.status === "ended" && nextEpisode && !nextEpisodeDismissedRef.current) {
@@ -173,10 +185,14 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
     setNextEpisodeCountdown(undefined);
   }
 
+  function returnToStreamSelection() {
+    goTo({ name: "streamSelect", addonUrl, type, id: contentId, title, poster, nextEpisode });
+  }
+
   async function openSubtitlesOverlay() {
     setOverlay("subtitles");
     if (subtitles === undefined) {
-      const result = await aggregateSubtitles(addonManager.list(), addonClient, type, contentId, stream.subtitles);
+      const result = await aggregateSubtitles(addonManager.list(), addonClient, type, contentId, currentStream.subtitles);
       setSubtitles(result);
     }
   }
@@ -186,7 +202,7 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
     setActiveSubtitleId(subtitle?.id);
 
     if (!subtitle) {
-      playerRef.current?.setSubtitle(undefined);
+      managerRef.current?.videoPlayer.setSubtitle(undefined);
       return;
     }
 
@@ -194,16 +210,33 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
       const track = await loadSubtitleTrack(subtitle);
       if (activeVttUrlRef.current) URL.revokeObjectURL(activeVttUrlRef.current);
       activeVttUrlRef.current = track.vttUrl;
-      playerRef.current?.setSubtitle(track);
+      managerRef.current?.videoPlayer.setSubtitle(track);
     } catch (err) {
       console.warn("[PlayerScreen] failed to load subtitle", err);
     }
   }
 
   function seekBy(deltaSeconds: number) {
-    const s = playerRef.current?.getState();
+    const s = managerRef.current?.videoPlayer.getState();
     if (!s) return;
-    playerRef.current?.seek(Math.max(0, Math.min(s.duration, s.currentTime + deltaSeconds)));
+    managerRef.current?.videoPlayer.seek(Math.max(0, Math.min(s.duration, s.currentTime + deltaSeconds)));
+  }
+
+  if (fallbackStatus?.phase === "exhausted") {
+    return (
+      <div className="player-screen player-screen--failed">
+        <h1>Unable to find a playable source.</h1>
+        {fallbackStatus.lastError && <p className="text-dim">{fallbackStatus.lastError.message}</p>}
+        <div className="player-screen__failed-actions">
+          <FocusableItem id="player-try-another" autoFocus onEnter={returnToStreamSelection}>
+            Try Another Stream
+          </FocusableItem>
+          <FocusableItem id="player-return" onEnter={() => goTo({ name: "home" })}>
+            Return
+          </FocusableItem>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -217,8 +250,12 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
         </div>
         <p className="text-dim">
           <span ref={timeTextRef}>0:00 / 0:00</span>
-          {status.status === "error" ? ` · error: ${status.error}` : ""}
         </p>
+        {fallbackStatus?.phase === "retrying" && (
+          <p className="player-screen__fallback-banner" role="status">
+            Unable to play this source. Trying another source…
+          </p>
+        )}
 
         <div className="player-screen__controls">
           <FocusableItem id="player-seek-back" onEnter={() => seekBy(-SEEK_STEP_SECONDS)}>
@@ -227,7 +264,7 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
           <FocusableItem
             id="player-play-pause"
             autoFocus
-            onEnter={() => (status.status === "playing" ? playerRef.current?.pause() : playerRef.current?.play())}
+            onEnter={() => (status.status === "playing" ? managerRef.current?.videoPlayer.pause() : managerRef.current?.videoPlayer.play())}
           >
             {status.status === "playing" ? "Pause" : "Play"}
           </FocusableItem>
@@ -284,7 +321,7 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
                   id={`audio-${track.id}`}
                   autoFocus
                   onEnter={() => {
-                    playerRef.current?.setAudio(track);
+                    managerRef.current?.videoPlayer.setAudio(track);
                     setOverlay("none");
                   }}
                 >

@@ -1,0 +1,75 @@
+.diagnostics-screen {
+  max-width: 960px;
+}
+
+.diagnostics-section {
+  margin-bottom: 1.75rem;
+}
+
+.diagnostics-section h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.6rem;
+}
+
+.diagnostics-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1.5rem;
+  row-gap: 0.35rem;
+  margin: 0;
+}
+
+.diagnostics-grid dt {
+  color: var(--text-dim);
+}
+
+.diagnostics-grid dd {
+  margin: 0;
+}
+
+.diagnostics-check--yes {
+  color: #4caf50;
+}
+
+.diagnostics-check--no {
+  color: #f44336;
+}
+
+.diagnostics-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.diagnostics-results {
+  list-style: none;
+  margin: 0.25rem 0;
+  padding: 0;
+}
+
+.diagnostics-results li {
+  padding: 0.15rem 0;
+}
+
+.diagnostics-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  font-size: 0.85rem;
+}
+
+.diagnostics-log-entry {
+  padding: 0.15rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.diagnostics-log-entry--error {
+  color: #f44336;
+}
+
+.diagnostics-log-entry--warn {
+  color: #ffb300;
+}

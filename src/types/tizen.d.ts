@@ -40,7 +40,23 @@ declare global {
     systeminfo: TizenSystemInfo;
   }
 
+  // Samsung-specific (not part of the generic W3C `tizen` namespace above) —
+  // only present on real Samsung TV firmware, never in Tizen Studio's
+  // generic emulator or a desktop browser. Model info has no standard
+  // browser equivalent, so this is read defensively (see deviceCapabilities.ts).
+  interface SamsungProductInfo {
+    getModel?: () => string;
+    getRealModel?: () => string;
+    getModelCode?: () => string;
+    getFirmware?: () => string;
+  }
+
+  interface SamsungWebApis {
+    productinfo?: SamsungProductInfo;
+  }
+
   interface Window {
     tizen?: TizenGlobal;
+    webapis?: SamsungWebApis;
   }
 }

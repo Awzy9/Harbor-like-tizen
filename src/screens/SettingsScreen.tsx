@@ -9,6 +9,7 @@ const INERT_SETTINGS_ITEMS = ["Playback", "Subtitles", "About"];
 const DEV_TOOLS: Array<{ label: string; screen: Screen }> = [
   { label: "Test Remote Navigation", screen: { name: "testRemote" } },
   { label: "Test Player", screen: { name: "testPlayer" } },
+  { label: "Diagnostics", screen: { name: "diagnostics" } },
 ];
 
 export function SettingsScreen() {
