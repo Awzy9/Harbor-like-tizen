@@ -26,6 +26,13 @@ What's implemented:
   URL field, search box) gets real native text editing — spatial nav steps
   aside for it — with Back exiting the field. Works identically with arrow
   keys in a desktop browser and with an actual Samsung remote.
+  Performance-tuned for TV hardware: focus state lives in a manual external
+  store (`useSyncExternalStore`), so a keypress only re-renders the exactly
+  two elements whose focus state actually changed — not every focusable item
+  on screen (verified: 2 renders per move regardless of catalog size, not
+  O(n)). The focused element auto-scrolls into view, and losing focus (e.g.
+  navigating away from a button mid-screen) recovers immediately rather than
+  leaving the next keypress to "wake up" focus first.
 - **Tizen environment layer** (`src/tizen/`) — feature-detected wrappers
   around `window.tizen` (`tvinputdevice`, `application`, `systeminfo`) that
   no-op safely outside a real Tizen runtime, so the whole app runs and is
