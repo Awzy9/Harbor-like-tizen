@@ -50,8 +50,33 @@
 }
 
 .details-screen__episode {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
   padding: 0.8rem 1.2rem;
   background: var(--bg-elevated);
+}
+
+.details-screen__episode-thumb {
+  flex: 0 0 auto;
+  width: 120px;
+  height: 68px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.details-screen__episode-info {
+  min-width: 0;
+}
+
+.details-screen__episode-meta {
+  margin-top: 0.3rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .details-screen__error {

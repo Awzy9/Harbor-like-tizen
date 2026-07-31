@@ -105,11 +105,13 @@ export function DetailsScreen({ addonUrl, type, id }: DetailsScreenProps) {
                     const nextEpisode = next
                       ? { addonUrl, type, id: next.id, title: next.title || meta.name }
                       : undefined;
+                    const episodeMetaLine = [formatReleaseDate(video.released), video.overview].filter(Boolean).join(" · ");
                     return (
                       <FocusableItem
                         key={video.id}
                         id={`episode-${video.id}`}
                         className="details-screen__episode"
+                        autoFocus={index === 0}
                         onEnter={() =>
                           goTo({
                             name: "streamSelect",
@@ -122,11 +124,19 @@ export function DetailsScreen({ addonUrl, type, id }: DetailsScreenProps) {
                           })
                         }
                       >
-                        <div className="details-screen__episode-title">
-                          {video.season !== undefined && video.episode !== undefined
-                            ? `S${video.season}E${video.episode} · `
-                            : ""}
-                          {video.title}
+                        {video.thumbnail && (
+                          <img className="details-screen__episode-thumb" src={video.thumbnail} alt="" loading="lazy" />
+                        )}
+                        <div className="details-screen__episode-info">
+                          <div className="details-screen__episode-title">
+                            {video.season !== undefined && video.episode !== undefined
+                              ? `S${video.season}E${video.episode} · `
+                              : ""}
+                            {video.title}
+                          </div>
+                          {episodeMetaLine && (
+                            <div className="text-dim details-screen__episode-meta">{episodeMetaLine}</div>
+                          )}
                         </div>
                       </FocusableItem>
                     );
@@ -152,4 +162,11 @@ export function DetailsScreen({ addonUrl, type, id }: DetailsScreenProps) {
 
 function sortVideos(videos: MetaVideo[]): MetaVideo[] {
   return [...videos].sort((a, b) => (a.season ?? 0) - (b.season ?? 0) || (a.episode ?? 0) - (b.episode ?? 0));
+}
+
+/** Add-ons send `released` as an ISO-ish timestamp — shown as a plain date, not the raw string, where it actually parses. */
+function formatReleaseDate(released: string | undefined): string {
+  if (!released) return "";
+  const date = new Date(released);
+  return Number.isNaN(date.getTime()) ? released : date.toLocaleDateString();
 }

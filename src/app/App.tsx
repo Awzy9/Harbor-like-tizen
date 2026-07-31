@@ -10,6 +10,7 @@ import { SettingsScreen } from "@/screens/SettingsScreen";
 import { TestPlayerScreen } from "@/screens/TestPlayerScreen";
 import { TestRemoteScreen } from "@/screens/TestRemoteScreen";
 import { DiagnosticsScreen } from "@/screens/DiagnosticsScreen";
+import { SubtitleSettingsScreen } from "@/screens/SubtitleSettingsScreen";
 import { AddonsScreen } from "@/screens/AddonsScreen";
 import { SearchScreen } from "@/screens/SearchScreen";
 import { DetailsScreen } from "@/screens/DetailsScreen";
@@ -105,6 +106,8 @@ function renderScreen(screen: Screen) {
       return <TestRemoteScreen />;
     case "diagnostics":
       return <DiagnosticsScreen />;
+    case "subtitleSettings":
+      return <SubtitleSettingsScreen />;
     case "details":
       return <DetailsScreen addonUrl={screen.addonUrl} type={screen.type} id={screen.id} />;
     case "streamSelect":

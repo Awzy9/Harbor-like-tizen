@@ -6,7 +6,7 @@ import { useAccountStore } from "@/state/accountStore";
 import { getSeekInterval, nextSeekInterval, setSeekInterval } from "@/storage/playbackSettings";
 import "./SettingsScreen.css";
 
-const INERT_SETTINGS_ITEMS = ["Subtitles", "About"];
+const INERT_SETTINGS_ITEMS = ["About"];
 
 const DEV_TOOLS: Array<{ label: string; screen: Screen }> = [
   { label: "Test Remote Navigation", screen: { name: "testRemote" } },
@@ -34,6 +34,9 @@ export function SettingsScreen() {
         </FocusableItem>
         <FocusableItem id="settings-seek-interval" className="settings-item" onEnter={cycleSeekInterval}>
           Seek Interval: {seekInterval}s
+        </FocusableItem>
+        <FocusableItem id="settings-subtitle-settings" className="settings-item" onEnter={() => goTo({ name: "subtitleSettings" })}>
+          Subtitle Settings
         </FocusableItem>
         {INERT_SETTINGS_ITEMS.map((label) => (
           <FocusableItem key={label} id={`settings-${label}`} className="settings-item">

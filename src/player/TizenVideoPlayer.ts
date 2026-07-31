@@ -38,8 +38,13 @@ export type TimeUpdateListener = (time: { currentTime: number; duration: number 
  * on every tick for callers (the Player screen) that want to update a
  * progress bar/clock via direct DOM writes instead of React state.
  */
+let instanceCounter = 0;
+
 export class TizenVideoPlayer {
   private readonly video: HTMLVideoElement;
+  /** Unique per instance so setSubtitleStyle()'s ::cue rule only ever targets this player's own <video>, never another one that might exist briefly during a screen transition. */
+  private readonly videoClass = `tizen-video-${instanceCounter++}`;
+  private readonly cueStyleEl: HTMLStyleElement;
   private statusListeners = new Set<PlaybackStateListener>();
   private timeListeners = new Set<TimeUpdateListener>();
   private state: PlaybackState = { status: "idle", currentTime: 0, duration: 0 };
@@ -56,7 +61,11 @@ export class TizenVideoPlayer {
     this.video.style.width = "100%";
     this.video.style.height = "100%";
     this.video.playsInline = true;
+    this.video.classList.add(this.videoClass);
     container.appendChild(this.video);
+
+    this.cueStyleEl = document.createElement("style");
+    container.appendChild(this.cueStyleEl);
 
     this.video.addEventListener("loadstart", () => this.setStatus({ status: "loading" }));
     this.video.addEventListener("playing", () => this.setStatus({ status: "playing" }));
@@ -260,8 +269,14 @@ export class TizenVideoPlayer {
     this.video.volume = Math.max(0, Math.min(1, value));
   }
 
-  /** Adds/enables a WebVTT subtitle track. Pass undefined to turn subtitles off. */
-  setSubtitle(track: SubtitleTrackInfo | undefined): void {
+  /**
+   * Adds/enables a WebVTT subtitle track. Pass undefined to turn subtitles
+   * off. `delaySeconds` shifts every cue's timing after the track loads
+   * (positive = subtitles appear later) — there's no <track> attribute for
+   * this, so it's done by mutating each VTTCue directly once the browser has
+   * parsed them.
+   */
+  setSubtitle(track: SubtitleTrackInfo | undefined, delaySeconds = 0): void {
     for (const existing of Array.from(this.video.querySelectorAll("track"))) {
       existing.remove();
     }
@@ -276,8 +291,23 @@ export class TizenVideoPlayer {
     this.video.appendChild(el);
     // Track elements only take effect once attached and the mode is set explicitly.
     el.addEventListener("load", () => {
-      if (el.track) el.track.mode = "showing";
+      if (!el.track) return;
+      el.track.mode = "showing";
+      if (delaySeconds !== 0 && el.track.cues) {
+        for (const cue of Array.from(el.track.cues)) {
+          if (cue instanceof VTTCue) {
+            cue.startTime += delaySeconds;
+            cue.endTime += delaySeconds;
+          }
+        }
+      }
     });
+  }
+
+  /** Styles this player's own subtitle cues only (see videoClass) — background is a solid box behind the text, not the whole video. */
+  setSubtitleStyle(fontSizeRem: number, background: boolean): void {
+    const backgroundRule = background ? "rgba(0, 0, 0, 0.75)" : "transparent";
+    this.cueStyleEl.textContent = `.${this.videoClass}::cue { font-size: ${fontSizeRem}rem; background: ${backgroundRule}; }`;
   }
 
   /** Only ever reflects tracks the platform actually reports (see AudioManager) — empty on most desktop browsers. */
@@ -304,6 +334,7 @@ export class TizenVideoPlayer {
     this.statusListeners.clear();
     this.timeListeners.clear();
     this.video.remove();
+    this.cueStyleEl.remove();
   }
 
   private setStatus(partial: Partial<PlaybackState>): void {

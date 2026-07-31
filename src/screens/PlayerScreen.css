@@ -76,6 +76,28 @@
   font-size: 1.1rem;
 }
 
+.player-screen__subtitle-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.player-screen__subtitle-tools .focusable-item {
+  padding: 0.5rem 0.8rem;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.85rem;
+}
+
+.player-screen__subtitle-delay-value {
+  min-width: 3.5rem;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
 .player-screen__panel-list {
   list-style: none;
   margin: 0;

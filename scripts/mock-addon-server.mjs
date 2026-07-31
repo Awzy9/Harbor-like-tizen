@@ -19,6 +19,14 @@ const PORT = Number(process.argv[2] ?? process.env.PORT ?? 7777);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SAMPLE_VIDEO_PATH = path.join(__dirname, "..", "public", "test-media", "sample.webm");
 
+// A self-contained data-URI thumbnail — kept inline rather than pointing at
+// any third-party placeholder-image host, same reasoning as the rest of
+// this fixture (see file header).
+function episodeThumbnail(label) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#171a1f"/><text x="160" y="95" fill="#9aa0a8" font-family="sans-serif" font-size="24" text-anchor="middle">${label}</text></svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+}
+
 const MOVIES = [
   { id: "mock:1", type: "movie", name: "Test Pattern Feature", description: "A short animated test-pattern clip, used only to validate the playback pipeline.", releaseInfo: "2026" },
   { id: "mock:2", type: "movie", name: "Focus Ring Diaries", description: "Another mock entry to prove catalog aggregation across multiple items.", releaseInfo: "2026" },
@@ -33,8 +41,24 @@ const SERIES = [
     description: "A mock series fixture used to test episode navigation and the next-episode flow.",
     releaseInfo: "2026",
     videos: [
-      { id: "mock-series:1:1:1", title: "Pilot", season: 1, episode: 1 },
-      { id: "mock-series:1:1:2", title: "The Sequel", season: 1, episode: 2 },
+      {
+        id: "mock-series:1:1:1",
+        title: "Pilot",
+        season: 1,
+        episode: 1,
+        released: "2026-01-05T00:00:00.000Z",
+        overview: "The focus ring is introduced for the first time.",
+        thumbnail: episodeThumbnail("S1E1"),
+      },
+      {
+        id: "mock-series:1:1:2",
+        title: "The Sequel",
+        season: 1,
+        episode: 2,
+        released: "2026-01-12T00:00:00.000Z",
+        overview: "The focus ring returns, this time with spatial navigation.",
+        thumbnail: episodeThumbnail("S1E2"),
+      },
     ],
   },
 ];

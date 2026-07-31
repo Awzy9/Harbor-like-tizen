@@ -8,6 +8,15 @@ import type { PlaybackState, AudioTrackInfo } from "@/types/player";
 import type { ResolvedStream } from "@/types/playback";
 import { getPlaybackProgress, savePlaybackProgress, isPlaybackFinished } from "@/storage/playbackProgress";
 import { getSeekInterval } from "@/storage/playbackSettings";
+import { getPreferredAudioLanguage, setPreferredAudioLanguage } from "@/storage/audioSettings";
+import {
+  getSubtitleSettings,
+  setPreferredSubtitleLanguage,
+  cycleSubtitleFontSize,
+  adjustSubtitleDelay,
+  fontSizeRem,
+  DELAY_STEP_MS,
+} from "@/storage/subtitleSettings";
 import { addonManager } from "@/stremio/addon-client/addonManagerInstance";
 import { addonClient } from "@/stremio/addon-client/addonClientInstance";
 import { aggregateSubtitles, type AggregatedSubtitle } from "@/stremio/subtitles/SubtitleAggregator";
@@ -68,6 +77,8 @@ export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, t
   const [overlay, setOverlay] = useState<Overlay>("none");
   const [subtitles, setSubtitles] = useState<AggregatedSubtitle[] | undefined>(undefined);
   const [activeSubtitleId, setActiveSubtitleId] = useState<string | undefined>(undefined);
+  const [subtitleSettings, setSubtitleSettingsState] = useState(getSubtitleSettings);
+  const autoSubtitleAppliedRef = useRef(false);
   const [audioTracks, setAudioTracks] = useState<AudioTrackInfo[]>([]);
   const activeVttUrlRef = useRef<string | undefined>(undefined);
 
@@ -141,7 +152,14 @@ export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, t
       if (!hasResumedRef.current && duration > 0) {
         hasResumedRef.current = true;
         // Audio tracks are only enumerable once the media has metadata.
-        setAudioTracks(manager.videoPlayer.listAudioTracks());
+        const tracks = manager.videoPlayer.listAudioTracks();
+        setAudioTracks(tracks);
+
+        // Remember audio track: apply the last language the user actively
+        // picked, if this stream happens to report one matching it.
+        const preferredLanguage = getPreferredAudioLanguage();
+        const match = preferredLanguage && tracks.find((t) => t.language === preferredLanguage);
+        if (match) manager.videoPlayer.setAudio(match);
       }
     });
 
@@ -181,6 +199,41 @@ export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, t
     // `streams` prop identity change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Fetched eagerly (not lazily on Subtitles-panel open) so a remembered
+  // subtitle language can auto-apply as soon as the stream is playable,
+  // rather than only after the user opens the panel once.
+  useEffect(() => {
+    let cancelled = false;
+    aggregateSubtitles(addonManager.list(), addonClient, type, contentId, streams[0].subtitles).then((result) => {
+      if (!cancelled) setSubtitles(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Remember subtitle track: once subtitles resolve, auto-apply the last
+  // language the user actively chose (or leave off, if that's what they
+  // chose) — only ever once per mount, so it doesn't fight a manual pick.
+  useEffect(() => {
+    if (autoSubtitleAppliedRef.current || subtitles === undefined) return;
+    autoSubtitleAppliedRef.current = true;
+    if (subtitleSettings.preferredLanguage === "off") return;
+    const match = subtitles.find((s) => s.lang === subtitleSettings.preferredLanguage);
+    if (match) {
+      setActiveSubtitleId(match.id);
+      applySubtitle(match, subtitleSettings.delayMs);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtitles]);
+
+  // Applies the persisted font size/background to this player's own cues —
+  // both at mount and whenever the Subtitles panel's controls change them.
+  useEffect(() => {
+    managerRef.current?.videoPlayer.setSubtitleStyle(fontSizeRem(subtitleSettings.fontSize), subtitleSettings.background);
+  }, [subtitleSettings.fontSize, subtitleSettings.background]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -233,31 +286,42 @@ export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, t
     goTo({ name: "streamSelect", addonUrl, type, id: contentId, title, poster, nextEpisode });
   }
 
-  async function openSubtitlesOverlay() {
+  function openSubtitlesOverlay() {
     setOverlay("subtitles");
-    if (subtitles === undefined) {
-      const result = await aggregateSubtitles(addonManager.list(), addonClient, type, contentId, currentStream.subtitles);
-      setSubtitles(result);
-    }
   }
 
-  async function selectSubtitle(subtitle: AggregatedSubtitle | undefined) {
-    setOverlay("none");
-    setActiveSubtitleId(subtitle?.id);
-
+  /** Loads and applies a subtitle at a given delay — the mechanics, without touching overlay/preference state. Shared by manual selection, the delay-adjust controls, and the "remember subtitle track" auto-apply. */
+  async function applySubtitle(subtitle: AggregatedSubtitle | undefined, delayMs: number) {
     if (!subtitle) {
       managerRef.current?.videoPlayer.setSubtitle(undefined);
       return;
     }
-
     try {
       const track = await loadSubtitleTrack(subtitle);
       if (activeVttUrlRef.current) URL.revokeObjectURL(activeVttUrlRef.current);
       activeVttUrlRef.current = track.vttUrl;
-      managerRef.current?.videoPlayer.setSubtitle(track);
+      managerRef.current?.videoPlayer.setSubtitle(track, delayMs / 1000);
     } catch (err) {
       console.warn("[PlayerScreen] failed to load subtitle", err);
     }
+  }
+
+  function selectSubtitle(subtitle: AggregatedSubtitle | undefined) {
+    setOverlay("none");
+    setActiveSubtitleId(subtitle?.id);
+    setPreferredSubtitleLanguage(subtitle?.lang ?? "off");
+    applySubtitle(subtitle, subtitleSettings.delayMs);
+  }
+
+  function cycleFontSize() {
+    setSubtitleSettingsState(cycleSubtitleFontSize());
+  }
+
+  function adjustDelay(deltaMs: number) {
+    const updated = adjustSubtitleDelay(deltaMs);
+    setSubtitleSettingsState(updated);
+    const active = subtitles?.find((s) => s.id === activeSubtitleId);
+    if (active) applySubtitle(active, updated.delayMs);
   }
 
   function seekBy(deltaSeconds: number) {
@@ -352,6 +416,18 @@ export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, t
               ))}
             </ul>
           )}
+          <div className="player-screen__subtitle-tools">
+            <FocusableItem id="subtitle-font-size" onEnter={cycleFontSize}>
+              Size: {subtitleSettings.fontSize}
+            </FocusableItem>
+            <FocusableItem id="subtitle-delay-down" onEnter={() => adjustDelay(-DELAY_STEP_MS)}>
+              Delay −{DELAY_STEP_MS}ms
+            </FocusableItem>
+            <span className="text-dim player-screen__subtitle-delay-value">{subtitleSettings.delayMs}ms</span>
+            <FocusableItem id="subtitle-delay-up" onEnter={() => adjustDelay(DELAY_STEP_MS)}>
+              Delay +{DELAY_STEP_MS}ms
+            </FocusableItem>
+          </div>
         </div>
       )}
 
@@ -366,6 +442,7 @@ export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, t
                   autoFocus
                   onEnter={() => {
                     managerRef.current?.videoPlayer.setAudio(track);
+                    if (track.language) setPreferredAudioLanguage(track.language);
                     setOverlay("none");
                   }}
                 >

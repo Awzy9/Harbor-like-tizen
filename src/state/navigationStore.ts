@@ -16,6 +16,7 @@ export type Screen =
   | { name: "testPlayer" }
   | { name: "testRemote" }
   | { name: "diagnostics" }
+  | { name: "subtitleSettings" }
   | { name: "details"; addonUrl: string; type: string; id: string }
   | { name: "streamSelect"; addonUrl: string; type: string; id: string; title: string; poster?: string; nextEpisode?: NextEpisodeRef }
   | {
@@ -49,7 +50,16 @@ export type ScreenName = Screen["name"];
 // Add-ons/Settings) is peer navigation, not a stack: bouncing between tabs
 // and pressing Back should go straight to Home, not replay every tab you
 // visited. Exported so App.tsx's nav bar visibility check uses the same list.
-export const DRILL_IN_SCREENS: ScreenName[] = ["details", "streamSelect", "player", "testPlayer", "testRemote", "diagnostics", "account"];
+export const DRILL_IN_SCREENS: ScreenName[] = [
+  "details",
+  "streamSelect",
+  "player",
+  "testPlayer",
+  "testRemote",
+  "diagnostics",
+  "subtitleSettings",
+  "account",
+];
 
 interface NavigationState {
   screen: Screen;

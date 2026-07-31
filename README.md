@@ -160,19 +160,34 @@ What's implemented:
   Stream Selection shows a RECOMMENDED badge plus quality/codec/HDR/
   Direct-or-Torrent badges instead of a single quality string.
 - **Subtitles** (`src/stremio/subtitles/`, `src/player/SubtitleManager.ts`) —
-  aggregates subtitles across every add-on declaring subtitle support for the
-  type plus any embedded directly in the resolved stream; converts SRT to
-  WebVTT (the only format `<track>` renders natively) and falls back to a
-  visible failure rather than mistranslating anything fancier (ASS/SSA).
-  Selectable from the Player screen's Subtitles panel.
+  fetched eagerly as soon as the player mounts (not lazily on panel open),
+  aggregating every add-on that declares subtitle support for the type plus
+  any embedded directly in the resolved stream; converts SRT to WebVTT (the
+  only format `<track>` renders natively) and falls back to a visible
+  failure rather than mistranslating anything fancier (ASS/SSA). **Remembers
+  the last language actively chosen** (`src/storage/subtitleSettings.ts`)
+  and auto-applies it on future playback without the user reopening the
+  panel — including "off," if that's what they picked. The Subtitles panel
+  also has live **font size** (cycles small/medium/large) and **sync delay**
+  (±250ms, applied by shifting `VTTCue` timings after the track loads —
+  there's no `<track>` attribute for this) controls, both applied via a
+  `::cue` stylesheet rule scoped to that one player instance
+  (`TizenVideoPlayer.setSubtitleStyle`) so multiple players never collide.
+  Font size/background defaults live in a dedicated **Subtitle Settings**
+  screen off Settings; delay is deliberately per-title only, not a global
+  default, since sync offsets are a property of one bad stream, not a
+  standing preference.
 - **Audio tracks** (`src/player/AudioManager.ts`) — wraps
   `HTMLMediaElement.audioTracks`; the Player screen's Audio button only
   appears when the platform actually reports more than one track — never a
-  fabricated list.
+  fabricated list. **Remembers the last language actively chosen**
+  (`src/storage/audioSettings.ts`) and auto-selects a matching track next
+  time one's reported.
 - **Next episode** — Details screen computes the next episode from the
   sorted episode list and threads it through Stream Selection into the
   Player; on playback end, an "Up Next" panel counts down and auto-advances
-  (or Play Now / Cancel).
+  (or Play Now / Cancel). Episode rows show a thumbnail, air date, and
+  overview snippet when the add-on provides them, instead of just a title.
 - **Local mock add-on** (`scripts/mock-addon-server.mjs`, run via
   `npm run mock-addon`) — a small self-contained Stremio-protocol server used
   only for development, so the full install → catalog → details → stream
