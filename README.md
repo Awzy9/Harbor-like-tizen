@@ -129,6 +129,14 @@ What's implemented:
   player's control overlay auto-hides after 5s of no remote input while
   actually playing (not while paused or a panel is open) and reappears
   instantly on any keypress.
+- **Library** (`src/storage/library.ts`, Library tab) — favorite and
+  watched are independent flags per title (denormalized title/poster, same
+  pattern as PlaybackProgress), toggled from Details ("☆ Add to
+  Favorites"/"Mark Watched"). The Library screen filters by All/Favorites/
+  Watched and shows a Watched/Favorite badge per poster. Un-favoriting an
+  unwatched title (or un-marking a non-favorited watched one) deletes the
+  entry entirely rather than leaving a dead `{favorited: false, watched:
+  false}` row around.
 - **Device capabilities & Diagnostics** (`src/tizen/deviceCapabilities.ts`,
   Settings → Developer Tools → Diagnostics) — real, feature-detected (never
   hardcoded) codec/HLS/DASH/HDR/network capabilities via `canPlayType()`/

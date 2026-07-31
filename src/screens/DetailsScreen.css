@@ -22,6 +22,17 @@
   line-height: 1.5;
 }
 
+.details-screen__library-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.details-screen__library-button {
+  padding: 0.6rem 1.2rem;
+  background: var(--bg-elevated);
+}
+
 .details-screen__watch {
   display: inline-block;
   padding: 0.9rem 2rem;

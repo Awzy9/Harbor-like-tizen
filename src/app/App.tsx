@@ -5,6 +5,7 @@ import { useNavigationStore, DRILL_IN_SCREENS, type Screen, type ScreenName } fr
 import { exitApplication } from "@/tizen/lifecycle";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { HomeScreen } from "@/screens/HomeScreen";
+import { LibraryScreen } from "@/screens/LibraryScreen";
 import { SettingsScreen } from "@/screens/SettingsScreen";
 import { TestPlayerScreen } from "@/screens/TestPlayerScreen";
 import { TestRemoteScreen } from "@/screens/TestRemoteScreen";
@@ -20,6 +21,7 @@ import "./App.css";
 const NAV_ITEMS: Array<{ name: ScreenName; label: string }> = [
   { name: "home", label: "Home" },
   { name: "search", label: "Search" },
+  { name: "library", label: "Library" },
   { name: "addons", label: "Add-ons" },
   { name: "settings", label: "Settings" },
 ];
@@ -89,6 +91,8 @@ function renderScreen(screen: Screen) {
       return <HomeScreen />;
     case "search":
       return <SearchScreen />;
+    case "library":
+      return <LibraryScreen />;
     case "addons":
       return <AddonsScreen />;
     case "settings":

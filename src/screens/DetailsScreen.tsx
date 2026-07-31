@@ -5,6 +5,7 @@ import { addonClient } from "@/stremio/addon-client/addonClientInstance";
 import { getAggregatedMeta } from "@/stremio/metadata/MetadataAggregator";
 import type { Meta, MetaVideo } from "@/stremio/addon-client/types";
 import { useNavigationStore } from "@/state/navigationStore";
+import { getLibraryItem, setFavorited, setWatched } from "@/storage/library";
 import "./DetailsScreen.css";
 
 interface DetailsScreenProps {
@@ -17,7 +18,14 @@ type LoadState = { kind: "loading" } | { kind: "error"; message: string } | { ki
 
 export function DetailsScreen({ addonUrl, type, id }: DetailsScreenProps) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const [libraryFlags, setLibraryFlags] = useState({ favorited: false, watched: false });
   const goTo = useNavigationStore((s) => s.goTo);
+
+  useEffect(() => {
+    if (state.kind !== "ready") return;
+    const item = getLibraryItem(addonUrl, type, state.meta.id);
+    setLibraryFlags({ favorited: item?.favorited ?? false, watched: item?.watched ?? false });
+  }, [state, addonUrl, type]);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,6 +55,16 @@ export function DetailsScreen({ addonUrl, type, id }: DetailsScreenProps) {
 
   const { meta } = state;
 
+  function toggleFavorite() {
+    const updated = setFavorited({ addonUrl, type, contentId: meta.id, title: meta.name, poster: meta.poster }, !libraryFlags.favorited);
+    setLibraryFlags({ favorited: updated.favorited, watched: updated.watched });
+  }
+
+  function toggleWatched() {
+    const updated = setWatched({ addonUrl, type, contentId: meta.id, title: meta.name, poster: meta.poster }, !libraryFlags.watched);
+    setLibraryFlags({ favorited: updated.favorited, watched: updated.watched });
+  }
+
   return (
     <div className="details-screen" style={meta.background ? { backgroundImage: `url(${meta.background})` } : undefined}>
       <div className="details-screen__scrim">
@@ -56,6 +74,25 @@ export function DetailsScreen({ addonUrl, type, id }: DetailsScreenProps) {
             {[meta.releaseInfo, meta.runtime, meta.genres?.join(", ")].filter(Boolean).join(" · ")}
           </p>
           {meta.description && <p className="details-screen__description">{meta.description}</p>}
+
+          <div className="details-screen__library-actions">
+            <FocusableItem
+              id="details-favorite"
+              className="details-screen__library-button"
+              selected={libraryFlags.favorited}
+              onEnter={toggleFavorite}
+            >
+              {libraryFlags.favorited ? "★ Favorited" : "☆ Add to Favorites"}
+            </FocusableItem>
+            <FocusableItem
+              id="details-watched"
+              className="details-screen__library-button"
+              selected={libraryFlags.watched}
+              onEnter={toggleWatched}
+            >
+              {libraryFlags.watched ? "✓ Watched" : "Mark Watched"}
+            </FocusableItem>
+          </div>
 
           {meta.videos && meta.videos.length > 0 ? (
             <>

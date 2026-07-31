@@ -25,6 +25,20 @@
   font-size: 0.95rem;
 }
 
+.poster-tile__badge {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #0b0d10;
+  background: var(--accent);
+  border-radius: 4px;
+}
+
 .poster-tile__label {
   position: absolute;
   left: 0;

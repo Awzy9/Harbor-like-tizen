@@ -9,6 +9,7 @@ import type { ResolvedStream } from "@/types/playback";
 export type Screen =
   | { name: "home" }
   | { name: "search" }
+  | { name: "library" }
   | { name: "addons" }
   | { name: "settings" }
   | { name: "account" }
