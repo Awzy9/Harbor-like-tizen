@@ -16,6 +16,16 @@
   bottom: 0;
   padding: 2rem 4vw 3vh;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+
+/* OLED-safe idle state (spec sections 17/37) — faded out rather than
+   unmounted, so the focus system doesn't need to re-recover state each time
+   the controls reappear. */
+.player-screen__overlay--hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .player-screen__title {

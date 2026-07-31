@@ -1,7 +1,7 @@
 import { FocusProvider, useBackHandler } from "@/navigation/FocusManager";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { FocusableItem } from "@/components/FocusableItem";
-import { useNavigationStore, type Screen, type ScreenName } from "@/state/navigationStore";
+import { useNavigationStore, DRILL_IN_SCREENS, type Screen, type ScreenName } from "@/state/navigationStore";
 import { exitApplication } from "@/tizen/lifecycle";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { HomeScreen } from "@/screens/HomeScreen";
@@ -24,19 +24,20 @@ const NAV_ITEMS: Array<{ name: ScreenName; label: string }> = [
   { name: "settings", label: "Settings" },
 ];
 
-// Screens reachable only by drilling in from another screen (not top-level
-// nav) fall back to Home on Back rather than whatever top-level tab happened
-// to be selected last.
-const DRILL_IN_SCREENS: ScreenName[] = ["details", "streamSelect", "player", "testPlayer", "testRemote", "diagnostics", "account"];
-
 function Shell() {
-  const { screen, goTo } = useNavigationStore();
+  const { screen, goTo, goBack } = useNavigationStore();
   const online = useOnlineStatus();
 
-  // Back returns to Home first, then exits from Home — on a real TV, exiting
+  // Step back one screen at a time through a drill-in chain (Player ->
+  // Stream Selection -> Details -> Home); once there's nowhere left to go
+  // back to, fall back to Home, then exit from Home — on a real TV, exiting
   // is the only way back to Smart Hub, so it must never be a dead end, but
   // it also shouldn't be the *first* thing Back does from every screen.
-  useBackHandler(() => (screen.name === "home" ? exitApplication() : goTo({ name: "home" })));
+  useBackHandler(() => {
+    if (goBack()) return;
+    if (screen.name === "home") exitApplication();
+    else goTo({ name: "home" });
+  });
 
   return (
     <div className="app-shell">

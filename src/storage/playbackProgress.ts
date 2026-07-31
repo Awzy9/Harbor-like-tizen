@@ -19,13 +19,16 @@ export function getAllPlaybackProgress(): PlaybackProgress[] {
   return Object.values(readAll());
 }
 
-// Don't bother resuming (or showing in Continue Watching) into the last few
-// seconds — that's "finished", not "in progress". Shared so Home's Continue
-// Watching filter and the Player's resume check agree on the same cutoff.
-export const RESUME_END_GUARD_SECONDS = 5;
+// Percentage-based rather than a flat few-second guard (docs/PROJECT_PLAN.md
+// section 22): a fixed few-second cutoff is basically irrelevant for a
+// 2-hour movie (only excludes the literal credits) but far too tight for a
+// short clip. Shared so Home's Continue Watching filter and the Player's
+// resume check agree on the same "is this basically done" definition.
+const FINISHED_THRESHOLD_FRACTION = 0.9;
 
 export function isPlaybackFinished(progress: PlaybackProgress): boolean {
-  return progress.position >= progress.duration - RESUME_END_GUARD_SECONDS;
+  if (progress.duration <= 0) return false; // unknown duration — don't claim "finished" about something we can't measure
+  return progress.position >= progress.duration * FINISHED_THRESHOLD_FRACTION;
 }
 
 /** Call on a timer (every 5-10s) plus pause/stop/ended — not on every timeupdate (docs/PROJECT_PLAN.md section 26). */

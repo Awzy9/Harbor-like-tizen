@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { PlaybackFallbackManager, type FallbackStatus } from "@/player/PlaybackFallbackManager";
 import { FocusableItem } from "@/components/FocusableItem";
 import { useBackHandler } from "@/navigation/FocusManager";
+import { subscribeToRemote } from "@/tizen/remote";
 import { useNavigationStore, type NextEpisodeRef } from "@/state/navigationStore";
 import type { PlaybackState, AudioTrackInfo } from "@/types/player";
 import type { ResolvedStream } from "@/types/playback";
-import { getPlaybackProgress, savePlaybackProgress, RESUME_END_GUARD_SECONDS } from "@/storage/playbackProgress";
+import { getPlaybackProgress, savePlaybackProgress, isPlaybackFinished } from "@/storage/playbackProgress";
+import { getSeekInterval } from "@/storage/playbackSettings";
 import { addonManager } from "@/stremio/addon-client/addonManagerInstance";
 import { addonClient } from "@/stremio/addon-client/addonClientInstance";
 import { aggregateSubtitles, type AggregatedSubtitle } from "@/stremio/subtitles/SubtitleAggregator";
@@ -25,13 +27,19 @@ interface PlayerScreenProps {
 }
 
 const PROGRESS_SAVE_INTERVAL_MS = 7000;
-const SEEK_STEP_SECONDS = 10;
 const NEXT_EPISODE_COUNTDOWN_SECONDS = 8;
+// Spec sections 17/37: an OLED TV shouldn't have a bright, static control
+// bar burned into the panel during long playback — hide it after a few
+// seconds of no remote input, and bring it straight back on any keypress.
+const CONTROLS_HIDE_DELAY_MS = 5000;
 
 type Overlay = "none" | "subtitles" | "audio";
 type Status = Pick<PlaybackState, "status" | "error">;
 
 export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, type, poster, nextEpisode }: PlayerScreenProps) {
+  // Read once per mount — the only place this preference can change is
+  // Settings, which isn't reachable while the player is on screen.
+  const [seekStepSeconds] = useState(getSeekInterval);
   const containerRef = useRef<HTMLDivElement>(null);
   const managerRef = useRef<PlaybackFallbackManager | null>(null);
   // Only status/error live in React state — they change rarely (on real
@@ -52,6 +60,7 @@ export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, t
   currentStreamRef.current = currentStream;
   const hasResumedRef = useRef(false);
   const goTo = useNavigationStore((s) => s.goTo);
+  const goBack = useNavigationStore((s) => s.goBack);
 
   const progressFillRef = useRef<HTMLDivElement>(null);
   const timeTextRef = useRef<HTMLSpanElement>(null);
@@ -65,6 +74,38 @@ export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, t
   const [nextEpisodeCountdown, setNextEpisodeCountdown] = useState<number | undefined>(undefined);
   const nextEpisodeDismissedRef = useRef(false);
 
+  const [controlsVisible, setControlsVisible] = useState(true);
+
+  // Only auto-hides while actually playing with nothing else open — pausing
+  // or opening the subtitles/audio panel or the next-episode prompt keeps
+  // the controls up, since those are moments the user is deliberately
+  // engaging with the player, not idly watching.
+  useEffect(() => {
+    const idle = status.status === "playing" && overlay === "none" && nextEpisodeCountdown === undefined;
+    if (!idle) {
+      setControlsVisible(true);
+      return;
+    }
+
+    let hideTimer: ReturnType<typeof setTimeout>;
+    const scheduleHide = () => {
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => setControlsVisible(false), CONTROLS_HIDE_DELAY_MS);
+    };
+    scheduleHide();
+
+    const unsubscribe = subscribeToRemote((action) => {
+      if (action === "back") return; // handled by useBackHandler — shouldn't also "wake" the controls
+      setControlsVisible(true);
+      scheduleHide();
+    });
+
+    return () => {
+      clearTimeout(hideTimer);
+      unsubscribe();
+    };
+  }, [status.status, overlay, nextEpisodeCountdown]);
+
   useBackHandler(() => {
     if (overlay !== "none") {
       setOverlay("none");
@@ -74,7 +115,10 @@ export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, t
       dismissNextEpisode();
       return;
     }
-    goTo({ name: "home" });
+    // Step back to Stream Selection (per the navigation stack — see
+    // navigationStore.ts); only if there's genuinely nowhere to go back to
+    // (e.g. this player was somehow reached directly) fall back to Home.
+    if (!goBack()) goTo({ name: "home" });
   });
 
   useEffect(() => {
@@ -107,7 +151,7 @@ export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, t
     });
 
     const saved = getPlaybackProgress(contentId, episodeId);
-    const resumeSeconds = saved && saved.position > 0 && saved.position < saved.duration - RESUME_END_GUARD_SECONDS ? saved.position : 0;
+    const resumeSeconds = saved && saved.position > 0 && !isPlaybackFinished(saved) ? saved.position : 0;
     manager.start(resumeSeconds);
 
     return () => {
@@ -242,7 +286,7 @@ export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, t
   return (
     <div className="player-screen">
       <div className="player-screen__video" ref={containerRef} />
-      <div className="player-screen__overlay">
+      <div className={`player-screen__overlay${controlsVisible ? "" : " player-screen__overlay--hidden"}`}>
         <h1 className="player-screen__title">{title}</h1>
 
         <div className="player-screen__progress-bar">
@@ -258,8 +302,8 @@ export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, t
         )}
 
         <div className="player-screen__controls">
-          <FocusableItem id="player-seek-back" onEnter={() => seekBy(-SEEK_STEP_SECONDS)}>
-            « {SEEK_STEP_SECONDS}s
+          <FocusableItem id="player-seek-back" onEnter={() => seekBy(-seekStepSeconds)}>
+            « {seekStepSeconds}s
           </FocusableItem>
           <FocusableItem
             id="player-play-pause"
@@ -268,8 +312,8 @@ export function PlayerScreen({ streams, addonUrl, contentId, episodeId, title, t
           >
             {status.status === "playing" ? "Pause" : "Play"}
           </FocusableItem>
-          <FocusableItem id="player-seek-forward" onEnter={() => seekBy(SEEK_STEP_SECONDS)}>
-            {SEEK_STEP_SECONDS}s »
+          <FocusableItem id="player-seek-forward" onEnter={() => seekBy(seekStepSeconds)}>
+            {seekStepSeconds}s »
           </FocusableItem>
           <FocusableItem id="player-subtitles" onEnter={openSubtitlesOverlay}>
             Subtitles

@@ -40,7 +40,13 @@ What's implemented:
   (several times a second) without going through React state at all —
   verified at 0 control re-renders during 1.5s of continuous playback, vs.
   exactly 2 for an actual navigation move, regardless of how fast the video
-  is ticking underneath it.
+  is ticking underneath it. Back navigation
+  (`src/state/navigationStore.ts`) is a real history stack, not a
+  jump-to-Home shortcut: drilling in through Details → Stream Selection →
+  Player steps back one screen at a time on Back, matching
+  docs/PROJECT_PLAN.md section 16's expected chain; switching between
+  top-level tabs (Home/Search/Add-ons/Settings) stays peer navigation
+  (no stacking) since those aren't a drill-in chain.
 - **Tizen environment layer** (`src/tizen/`) — feature-detected wrappers
   around `window.tizen` (`tvinputdevice`, `application`, `systeminfo`) that
   no-op safely outside a real Tizen runtime, so the whole app runs and is
@@ -110,10 +116,19 @@ What's implemented:
   browser-field conventions that Vite doesn't apply the same way — each is
   commented in place with why it's safe. **Resume** (`src/storage/playbackProgress.ts`)
   saves position (plus denormalized addon/type/title/poster context) every
-  ~7s and on pause/unmount, and seeks back on reopening the same title. A
-  **Continue Watching** row on Home surfaces every in-progress (non-finished)
-  title whose add-on is still installed and enabled, sorted by recency,
-  linking straight to Stream Selection for that content id.
+  ~7s and on pause/unmount, and seeks back on reopening the same title.
+  "Finished" is a percentage of duration (90%+), not a fixed few seconds —
+  a flat cutoff is irrelevant for a 2-hour movie but too tight for a short
+  clip. A **Continue Watching** row on Home surfaces every in-progress
+  (non-finished) title whose add-on is still installed and enabled, sorted
+  by recency, linking straight to Stream Selection for that content id. The
+  **seek interval** (Settings → Seek Interval, cycles 5/10/15/30s) is a
+  persisted preference (`src/storage/playbackSettings.ts`) instead of a
+  fixed constant. On an OLED panel, a bright static control bar burned in
+  during long playback is a real concern (spec sections 17/37) — the
+  player's control overlay auto-hides after 5s of no remote input while
+  actually playing (not while paused or a panel is open) and reappears
+  instantly on any keypress.
 - **Device capabilities & Diagnostics** (`src/tizen/deviceCapabilities.ts`,
   Settings → Developer Tools → Diagnostics) — real, feature-detected (never
   hardcoded) codec/HLS/DASH/HDR/network capabilities via `canPlayType()`/
