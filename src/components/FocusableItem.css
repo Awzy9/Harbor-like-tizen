@@ -1,0 +1,30 @@
+.focusable-item {
+  position: relative;
+  border-radius: 8px;
+  outline: none;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+  cursor: pointer;
+}
+
+/* The focus ring must be unmissable from a couch: a real border, not just
+   a subtle shadow, since low-contrast focus states are the #1 usability
+   failure on remote-only interfaces. */
+.focusable-item.is-focused {
+  transform: scale(1.06);
+  box-shadow: 0 0 0 4px var(--focus-ring-color, #4da3ff), 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 1;
+}
+
+.focusable-item.is-selected {
+  box-shadow: 0 0 0 3px var(--selected-ring-color, #ffffff88) inset;
+}
+
+.focusable-item.is-disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
+.focusable-item.is-loading {
+  opacity: 0.7;
+}

@@ -1,0 +1,44 @@
+:root {
+  --bg: #0b0d10;
+  --bg-elevated: #171a1f;
+  --text: #f4f5f7;
+  --text-dim: #9aa0a8;
+  --accent: #4da3ff;
+  --focus-ring-color: #4da3ff;
+  --selected-ring-color: #ffffff88;
+
+  /* 10-foot UI: everything sized up from typical desktop-web scale. */
+  font-size: 20px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Samsung Sans", "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden; /* TVs don't scroll the page shell — only individual rails do */
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* Keep a safe-title-area margin so content isn't clipped by TV overscan. */
+.safe-area {
+  padding: 3vh 4vw;
+}
+
+.text-dim {
+  color: var(--text-dim);
+}

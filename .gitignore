@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.wgt
+.tizen/
+*.log
+.DS_Store
+.env
+.env.local

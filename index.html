@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080, user-scalable=no" />
+    <title>Harbor-like Tizen</title>
+    <link rel="icon" href="./icon.png" />
+    <link rel="stylesheet" href="./src/styles/global.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <!--
+      window.tizen / window.webapis are injected by the Tizen WebKit runtime
+      itself on a real TV — nothing to load here. In a desktop browser they
+      are simply absent, so src/tizen/env.ts feature-detects them and falls
+      back to browser-safe stubs.
+    -->
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>

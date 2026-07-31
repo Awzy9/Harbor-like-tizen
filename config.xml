@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets"
+        xmlns:tizen="http://tizen.org/ns/widgets"
+        id="https://github.com/awzy9/harbor-like-tizen"
+        version="0.1.0"
+        viewmodes="maximized">
+    <!--
+      tizen:application id is a placeholder ("HbrTzn00001") — Tizen requires
+      the 10-character package prefix to match the certificate you sign with.
+      Regenerate this via Tizen Studio / the Certificate Manager for your own
+      Samsung developer account before packaging a real .wgt (see README).
+    -->
+    <tizen:application id="HbrTzn00001.HarborLikeTizen"
+                        package="HbrTzn00001"
+                        required_version="6.0"/>
+
+    <name>Harbor-like Tizen</name>
+    <shortName>HarborTV</shortName>
+    <description>
+        An independent Stremio-compatible client for Samsung Smart TVs.
+        Not affiliated with or endorsed by Stremio or Harbor.
+    </description>
+    <icon src="icon.png"/>
+    <content src="index.html"/>
+
+    <tizen:profile name="tv"/>
+
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+    <tizen:privilege name="http://tizen.org/privilege/network.get"/>
+
+    <tizen:setting screen-orientation="landscape"
+                   context-menu="disable"
+                   background-support="disable"
+                   encryption="disable"
+                   install-location="auto"
+                   hwkey-event="enable"/>
+
+    <feature name="http://tizen.org/feature/screen.size.normal.d"/>
+</widget>

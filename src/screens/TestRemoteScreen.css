@@ -1,0 +1,25 @@
+.test-remote-screen__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 120px);
+  gap: 1rem;
+  margin: 1.5rem 0 2rem;
+}
+
+.test-remote-screen__cell {
+  height: 100px;
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+}
+
+.test-remote-screen__log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-family: monospace;
+}
