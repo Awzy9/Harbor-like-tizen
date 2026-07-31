@@ -28,3 +28,11 @@
   overflow-y: auto;
   padding: 0 4vw 3vh;
 }
+
+.app-offline-banner {
+  flex: 0 0 auto;
+  background: #5a3d00;
+  color: #ffdca0;
+  padding: 0.5rem 4vw;
+  font-size: 0.9rem;
+}

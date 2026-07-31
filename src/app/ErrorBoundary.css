@@ -1,0 +1,21 @@
+.error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+  max-width: 600px;
+}
+
+.error-boundary__button {
+  padding: 0.8rem 1.6rem;
+  border-radius: 8px;
+  border: none;
+  background: var(--bg-elevated, #171a1f);
+  color: var(--text, #f4f5f7);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.error-boundary__button:focus {
+  outline: 4px solid var(--focus-ring-color, #4da3ff);
+}

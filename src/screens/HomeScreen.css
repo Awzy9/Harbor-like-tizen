@@ -25,3 +25,20 @@
 .home-screen__empty {
   max-width: 480px;
 }
+
+.home-screen__retry {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.7rem 1.4rem;
+  background: var(--bg-elevated);
+}
+
+.home-screen__cache-notice {
+  margin-bottom: 1.5rem;
+}
+
+.home-screen__refresh-inline {
+  display: inline-block;
+  padding: 0.2rem 0.7rem;
+  background: var(--bg-elevated);
+}

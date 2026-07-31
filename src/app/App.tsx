@@ -1,7 +1,9 @@
 import { FocusProvider, useBackHandler } from "@/navigation/FocusManager";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { FocusableItem } from "@/components/FocusableItem";
 import { useNavigationStore, type Screen, type ScreenName } from "@/state/navigationStore";
 import { exitApplication } from "@/tizen/lifecycle";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { HomeScreen } from "@/screens/HomeScreen";
 import { SettingsScreen } from "@/screens/SettingsScreen";
 import { TestPlayerScreen } from "@/screens/TestPlayerScreen";
@@ -27,6 +29,7 @@ const DRILL_IN_SCREENS: ScreenName[] = ["details", "streamSelect", "player", "te
 
 function Shell() {
   const { screen, goTo } = useNavigationStore();
+  const online = useOnlineStatus();
 
   // Back returns to Home first, then exits from Home — on a real TV, exiting
   // is the only way back to Smart Hub, so it must never be a dead end, but
@@ -35,6 +38,11 @@ function Shell() {
 
   return (
     <div className="app-shell">
+      {!online && screen.name !== "player" && (
+        <div className="app-offline-banner" role="status">
+          You&apos;re offline — showing cached content where available.
+        </div>
+      )}
       {!DRILL_IN_SCREENS.includes(screen.name) && (
         <nav className="app-nav safe-area" aria-label="Main navigation">
           {NAV_ITEMS.map((item, index) => (
@@ -50,9 +58,26 @@ function Shell() {
           ))}
         </nav>
       )}
-      <main className="app-content">{renderScreen(screen)}</main>
+      <main className="app-content">
+        {/* Keyed by screen identity so navigating away from a screen that
+            crashed remounts a fresh boundary instead of staying stuck on
+            the "Try again" fallback for whatever screen died. */}
+        <ErrorBoundary key={screenKey(screen)}>{renderScreen(screen)}</ErrorBoundary>
+      </main>
     </div>
   );
+}
+
+function screenKey(screen: Screen): string {
+  switch (screen.name) {
+    case "details":
+    case "streamSelect":
+      return `${screen.name}:${screen.id}`;
+    case "player":
+      return `${screen.name}:${screen.contentId}:${screen.episodeId ?? ""}`;
+    default:
+      return screen.name;
+  }
 }
 
 function renderScreen(screen: Screen) {
@@ -97,8 +122,10 @@ function renderScreen(screen: Screen) {
 
 export function App() {
   return (
-    <FocusProvider>
-      <Shell />
-    </FocusProvider>
+    <ErrorBoundary>
+      <FocusProvider>
+        <Shell />
+      </FocusProvider>
+    </ErrorBoundary>
   );
 }

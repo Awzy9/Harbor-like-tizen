@@ -12,7 +12,7 @@ The full project plan (architecture rationale, milestones, testing matrix,
 distribution process, etc.) lives in [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md).
 This README only covers what exists right now and how to run it.
 
-## Current status: Milestones 1-5 done, into 6
+## Current status: Milestones 1-6 done, into 7
 
 What's implemented:
 
@@ -93,12 +93,25 @@ What's implemented:
   key-event log + a focusable grid) and Test Player (loads a bundled local
   clip plus an external HLS test stream) validate the remote-nav and
   playback pipelines in isolation.
+- **Crash/offline resilience** — a root `ErrorBoundary` (`src/app/ErrorBoundary.tsx`)
+  catches render errors app-wide, plus a per-screen boundary keyed by screen
+  identity so a crash on one screen (e.g. an add-on returning malformed
+  metadata) is recoverable by navigating away instead of taking down the
+  whole app; its fallback UI deliberately avoids the app's own focus system
+  so a crash inside navigation itself can't also break the recovery path.
+  `useOnlineStatus` + an offline banner (`src/hooks/useOnlineStatus.ts`)
+  reflect real network state. Home caches its last successful catalog fetch
+  (`src/storage/homeCatalogCache.ts`) and falls back to it — labeled and with
+  a Refresh action — when a fresh fetch fails or the network is down, rather
+  than replacing good data with a wall of per-row errors; with no cache and
+  no network it shows a plain "nothing cached yet" state with Retry.
 
 What's explicitly **not** built yet (see `docs/PROJECT_PLAN.md` for the full
 roadmap): account linking/QR flow and add-on sync, cross-add-on
 metadata/catalog merging (currently first-success-wins / one row per
 add-on+catalog, not deduplicated across add-ons), ASS/SSA subtitle
-conversion, offline mode, and TV packaging/signing.
+conversion, image/list virtualization for large catalogs, and TV
+packaging/signing.
 
 ## Requirements
 

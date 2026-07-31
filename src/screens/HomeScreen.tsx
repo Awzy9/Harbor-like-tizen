@@ -1,28 +1,42 @@
 import { useEffect, useState } from "react";
 import { PosterTile } from "@/components/PosterTile";
+import { FocusableItem } from "@/components/FocusableItem";
 import { addonManager } from "@/stremio/addon-client/addonManagerInstance";
 import { addonClient } from "@/stremio/addon-client/addonClientInstance";
 import { aggregateCatalogRows, type CatalogRow } from "@/stremio/catalog/CatalogAggregator";
+import { cacheHomeCatalogRows, readCachedHomeCatalogRows } from "@/storage/homeCatalogCache";
 import { useNavigationStore } from "@/state/navigationStore";
 import "./HomeScreen.css";
 
+type LoadState =
+  | { kind: "loading" }
+  | { kind: "ready"; rows: CatalogRow[]; fromCache: boolean }
+  | { kind: "offline-no-cache" };
+
 export function HomeScreen() {
-  const [rows, setRows] = useState<CatalogRow[] | undefined>(undefined);
+  const cached = readCachedHomeCatalogRows();
+  const [state, setState] = useState<LoadState>(
+    cached ? { kind: "ready", rows: cached.rows, fromCache: true } : { kind: "loading" },
+  );
   const goTo = useNavigationStore((s) => s.goTo);
 
-  useEffect(() => {
-    let cancelled = false;
+  function load() {
+    setState((prev) => (prev.kind === "ready" ? prev : { kind: "loading" }));
     aggregateCatalogRows(addonManager.list(), addonClient).then((result) => {
-      if (!cancelled) setRows(result);
+      const hasAnyItems = result.some((r) => r.items.length > 0);
+      if (hasAnyItems) {
+        cacheHomeCatalogRows(result);
+        setState({ kind: "ready", rows: result, fromCache: false });
+        return;
+      }
+      // Fetch produced nothing usable — if we already have cached rows on
+      // screen, leave them showing rather than replacing good data with a
+      // wall of per-row network errors (docs/PROJECT_PLAN.md section 36).
+      setState((prev) => (prev.kind === "ready" ? prev : { kind: "offline-no-cache" }));
     });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (rows === undefined) {
-    return <p className="text-dim">Loading catalogs…</p>;
   }
+
+  useEffect(load, []);
 
   if (addonManager.list().length === 0) {
     return (
@@ -33,8 +47,33 @@ export function HomeScreen() {
     );
   }
 
+  if (state.kind === "loading") {
+    return <p className="text-dim">Loading catalogs…</p>;
+  }
+
+  if (state.kind === "offline-no-cache") {
+    return (
+      <div className="home-screen__empty">
+        <p>You&apos;re offline and there&apos;s nothing cached yet.</p>
+        <FocusableItem id="home-retry" autoFocus onEnter={load} className="home-screen__retry">
+          Retry
+        </FocusableItem>
+      </div>
+    );
+  }
+
+  const { rows, fromCache } = state;
+
   return (
     <div className="home-screen">
+      {fromCache && (
+        <p className="home-screen__cache-notice text-dim">
+          Showing cached results.{" "}
+          <FocusableItem id="home-refresh" onEnter={load} className="home-screen__refresh-inline">
+            Refresh
+          </FocusableItem>
+        </p>
+      )}
       {rows.map((row) => (
         <section key={row.key} className="home-row">
           <h2 className="home-row__title">

@@ -527,8 +527,8 @@ App launches on Samsung OLED and can be signed/installed; remote navigation, Hom
 23. Implement resume. **(done — position saved every ~7s + on pause/unmount, resumed on reopen)**
 24. Implement series/episode playback. **(done — Details screen lists episodes; Player shows an "Up Next" countdown that auto-advances)**
 25. Implement stream ranking. **(done — StreamRanker, text-heuristic based)**
-26. Implement error handling.
-27. Optimize memory/network/image loading.
+26. Implement error handling. **(done — per-screen + root React error boundaries, offline detection/banner, cached-catalog fallback on Home; see section 36)**
+27. Optimize memory/network/image loading. **(partial — lazy `<img loading="lazy">` on posters; no list virtualization or request cancellation yet)**
 28. Test on real Samsung OLED hardware.
 29. Test multiple Samsung/Tizen versions.
 30. Create production certificate/signing process.
