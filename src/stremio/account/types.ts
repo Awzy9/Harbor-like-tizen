@@ -18,16 +18,24 @@ export interface LibraryItem {
   removed?: boolean;
 }
 
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
 /**
- * Seam between the app and Stremio's account backend. Intentionally NOT
- * implemented yet: the public Stremio add-on protocol does not define
- * account authentication (docs/PROJECT_PLAN.md section 13/59 Risk 1) — a
- * real implementation needs to be based on Stremio Web's current
- * open-source login/sync flow, researched and reviewed before it's wired
- * into the UI, not guessed at from this plan alone.
+ * Seam between the app and Stremio's account backend. `login`/`logout`/
+ * `getUserProfile`/`getInstalledAddons`/`syncAddons` are implemented in
+ * StremioApiAccountService against the confirmed api.strem.io contract (see
+ * StremioApiClient.ts) — login is email/password only; the TV-friendly
+ * QR/short-code pairing flow's backend contract couldn't be verified from
+ * public sources, so it's deliberately not implemented (docs/PROJECT_PLAN.md
+ * sections 13/59, Risk 1). `getLibrary` remains unimplemented for the same
+ * reason: Stremio's library-sync API is a separate, more complex
+ * delta-sync endpoint that wasn't part of this research pass.
  */
 export interface StremioAccountService {
-  login(): Promise<AuthSession>;
+  login(credentials: LoginCredentials): Promise<AuthSession>;
   logout(): Promise<void>;
   getInstalledAddons(): Promise<InstalledAddon[]>;
   getLibrary(): Promise<LibraryItem[]>;

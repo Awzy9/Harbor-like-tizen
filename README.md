@@ -54,13 +54,18 @@ What's implemented:
   non-http(s) streams (no torrent engine/YouTube embedding by design),
   `StreamRanker` scores by parsed quality/HDR text heuristics. Stream
   Selection and Player screens wire this into actual playback.
-- **Account service seam** (`src/stremio/account/`) — the
-  `StremioAccountService` interface is defined but deliberately
-  **unimplemented** (`UnimplementedAccountService` rejects every call). The
-  public Stremio protocol doesn't cover account authentication, so a real
-  implementation needs its own research pass against Stremio Web's current
-  login/sync flow before it's built — see `docs/PROJECT_PLAN.md` sections 13
-  and 59 (Risk 1).
+- **Stremio account login + add-on sync** (`src/stremio/account/`) — email/password
+  login and one-way add-on pull/push against `api.strem.io`, implemented
+  against the contract confirmed by reading Stremio's own officially-maintained
+  `stremio-api-client` source (`StremioApiClient.ts` documents exactly what
+  was confirmed vs. not). The TV-friendly QR/short-code pairing flow
+  (`link.stremio.com`) is deliberately **not** implemented — its backend
+  contract couldn't be verified from public sources, so email/password via
+  the on-screen text field is the login path for now. `getLibrary()` is
+  likewise left unimplemented: Stremio's library-sync API is a separate,
+  more complex delta-sync endpoint outside this research pass. Reachable via
+  Settings → Account. See `docs/PROJECT_PLAN.md` sections 13 and 59 (Risk 1)
+  for the full reasoning.
 - **Video player** (`src/player/TizenVideoPlayer.ts`) — a `<video>` wrapper
   (load/play/pause/seek/setVolume/setSubtitle/setAudio/stop/destroy) plus a
   lightweight `PlaybackCompatibility` pre-flight check. No HLS.js/DASH.js yet
@@ -110,9 +115,9 @@ What's implemented:
   no network it shows a plain "nothing cached yet" state with Retry.
 
 What's explicitly **not** built yet (see `docs/PROJECT_PLAN.md` for the full
-roadmap): account linking/QR flow and add-on sync, cross-add-on
-metadata/catalog merging (currently first-success-wins / one row per
-add-on+catalog, not deduplicated across add-ons), ASS/SSA subtitle
+roadmap): the QR/short-code TV account-linking flow and library sync,
+cross-add-on metadata/catalog merging (currently first-success-wins / one row
+per add-on+catalog, not deduplicated across add-ons), ASS/SSA subtitle
 conversion, image/list virtualization for large catalogs, and TV
 packaging/signing.
 

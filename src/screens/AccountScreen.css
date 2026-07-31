@@ -1,0 +1,27 @@
+.account-screen {
+  max-width: 480px;
+}
+
+.account-screen__form,
+.account-screen__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.account-screen__form .focusable-item,
+.account-screen__actions .focusable-item {
+  padding: 0.8rem 1.2rem;
+  background: var(--bg-elevated);
+}
+
+.account-screen__error {
+  color: #ff8080;
+  margin-top: 1rem;
+}
+
+.account-screen__info {
+  color: #8fd18f;
+  margin-top: 1rem;
+}

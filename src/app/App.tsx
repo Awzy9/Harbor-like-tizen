@@ -13,6 +13,7 @@ import { SearchScreen } from "@/screens/SearchScreen";
 import { DetailsScreen } from "@/screens/DetailsScreen";
 import { StreamSelectionScreen } from "@/screens/StreamSelectionScreen";
 import { PlayerScreen } from "@/screens/PlayerScreen";
+import { AccountScreen } from "@/screens/AccountScreen";
 import "./App.css";
 
 const NAV_ITEMS: Array<{ name: ScreenName; label: string }> = [
@@ -25,7 +26,7 @@ const NAV_ITEMS: Array<{ name: ScreenName; label: string }> = [
 // Screens reachable only by drilling in from another screen (not top-level
 // nav) fall back to Home on Back rather than whatever top-level tab happened
 // to be selected last.
-const DRILL_IN_SCREENS: ScreenName[] = ["details", "streamSelect", "player", "testPlayer", "testRemote"];
+const DRILL_IN_SCREENS: ScreenName[] = ["details", "streamSelect", "player", "testPlayer", "testRemote", "account"];
 
 function Shell() {
   const { screen, goTo } = useNavigationStore();
@@ -90,6 +91,8 @@ function renderScreen(screen: Screen) {
       return <AddonsScreen />;
     case "settings":
       return <SettingsScreen />;
+    case "account":
+      return <AccountScreen />;
     case "testPlayer":
       return <TestPlayerScreen />;
     case "testRemote":

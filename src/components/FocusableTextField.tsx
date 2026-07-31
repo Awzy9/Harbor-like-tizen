@@ -9,6 +9,7 @@ interface FocusableTextFieldProps {
   onSubmit?: () => void;
   placeholder?: string;
   autoFocus?: boolean;
+  type?: "text" | "email" | "password";
 }
 
 /**
@@ -19,7 +20,7 @@ interface FocusableTextFieldProps {
  * src/navigation/FocusManager.tsx) so normal text editing works; Back exits
  * the field back to spatial navigation.
  */
-export function FocusableTextField({ id, value, onChange, onSubmit, placeholder, autoFocus }: FocusableTextFieldProps) {
+export function FocusableTextField({ id, value, onChange, onSubmit, placeholder, autoFocus, type = "text" }: FocusableTextFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const { ref, focused } = useFocusable<HTMLDivElement>({
     id,
@@ -31,6 +32,7 @@ export function FocusableTextField({ id, value, onChange, onSubmit, placeholder,
     <div ref={ref} className={`focusable-text-field ${focused ? "is-focused" : ""}`}>
       <input
         ref={inputRef}
+        type={type}
         className="focusable-text-field__input"
         value={value}
         placeholder={placeholder}

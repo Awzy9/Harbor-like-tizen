@@ -11,6 +11,7 @@ export type Screen =
   | { name: "search" }
   | { name: "addons" }
   | { name: "settings" }
+  | { name: "account" }
   | { name: "testPlayer" }
   | { name: "testRemote" }
   | { name: "details"; addonUrl: string; type: string; id: string }

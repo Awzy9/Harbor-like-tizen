@@ -514,9 +514,9 @@ App launches on Samsung OLED and can be signed/installed; remote navigation, Hom
 10. Display catalogs. **(done — CatalogAggregator + Home rows)**
 11. Display metadata/details. **(done — MetadataAggregator + Details screen)**
 12. Implement search. **(done — SearchService + Search screen)**
-13. Implement account linking. **(not started — see Risk 1)**
-14. Implement add-on synchronization. **(not started — depends on 13)**
-15. Implement library synchronization. **(not started — depends on 13)**
+13. Implement account linking. **(partial — email/password login against the confirmed api.strem.io contract; the QR/short-code TV-pairing flow's backend couldn't be verified from public sources, so it's not implemented — see Risk 1)**
+14. Implement add-on synchronization. **(done — one-way pull/push via addonCollectionGet/addonCollectionSet, not a bidirectional merge)**
+15. Implement library synchronization. **(not started — Stremio's library-sync API is a separate delta-sync endpoint outside this research pass)**
 16. Implement stream resolution. **(done — StreamResolver/Normalizer + Stream Selection screen)**
 17. Build the Samsung TV video player. **(HTML5-video baseline done in this repo)**
 18. Test direct MP4 playback. **(done in a real browser; needs real-TV verification)**
