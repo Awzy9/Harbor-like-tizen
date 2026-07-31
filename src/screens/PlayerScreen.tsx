@@ -27,13 +27,24 @@ const SEEK_STEP_SECONDS = 10;
 const NEXT_EPISODE_COUNTDOWN_SECONDS = 8;
 
 type Overlay = "none" | "subtitles" | "audio";
+type Status = Pick<PlaybackState, "status" | "error">;
 
 export function PlayerScreen({ stream, contentId, episodeId, title, type, poster, nextEpisode }: PlayerScreenProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<TizenVideoPlayer | null>(null);
-  const [state, setState] = useState<PlaybackState>({ status: "idle", currentTime: 0, duration: 0 });
+  // Only status/error live in React state — they change rarely (on real
+  // transitions). currentTime/duration update several times a second via
+  // timeupdate; routing those through React state would re-render the whole
+  // control row on every tick, which is exactly the kind of thing that
+  // stutters on TV hardware. The progress bar/clock below are updated via
+  // direct DOM writes in the onTimeUpdate subscription instead (see the
+  // effect below) — same fix as src/navigation for the same reason.
+  const [status, setStatus] = useState<Status>({ status: "idle" });
   const hasResumedRef = useRef(false);
   const goTo = useNavigationStore((s) => s.goTo);
+
+  const progressFillRef = useRef<HTMLDivElement>(null);
+  const timeTextRef = useRef<HTMLSpanElement>(null);
 
   const [overlay, setOverlay] = useState<Overlay>("none");
   const [subtitles, setSubtitles] = useState<AggregatedSubtitle[] | undefined>(undefined);
@@ -62,10 +73,17 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
     playerRef.current = player;
     hasResumedRef.current = false;
 
-    const unsubscribe = player.onStateChange((s) => {
-      setState(s);
+    const unsubscribeStatus = player.onStatusChange(setStatus);
 
-      if (!hasResumedRef.current && s.duration > 0) {
+    const unsubscribeTime = player.onTimeUpdate(({ currentTime, duration }) => {
+      if (progressFillRef.current) {
+        progressFillRef.current.style.width = `${duration > 0 ? (currentTime / duration) * 100 : 0}%`;
+      }
+      if (timeTextRef.current) {
+        timeTextRef.current.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
+      }
+
+      if (!hasResumedRef.current && duration > 0) {
         hasResumedRef.current = true;
         const saved = getPlaybackProgress(contentId, episodeId);
         if (saved && saved.position > 0 && saved.position < saved.duration - RESUME_END_GUARD_SECONDS) {
@@ -80,7 +98,8 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
     player.play();
 
     return () => {
-      unsubscribe();
+      unsubscribeStatus();
+      unsubscribeTime();
       const finalState = player.getState();
       if (finalState.duration > 0) {
         savePlaybackProgress({
@@ -122,10 +141,10 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
   }, [contentId, episodeId, stream.addonId, type, title, poster]);
 
   useEffect(() => {
-    if (state.status === "ended" && nextEpisode && !nextEpisodeDismissedRef.current) {
+    if (status.status === "ended" && nextEpisode && !nextEpisodeDismissedRef.current) {
       setNextEpisodeCountdown(NEXT_EPISODE_COUNTDOWN_SECONDS);
     }
-  }, [state.status, nextEpisode]);
+  }, [status.status, nextEpisode]);
 
   useEffect(() => {
     if (nextEpisodeCountdown === undefined) return;
@@ -175,7 +194,11 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
     }
   }
 
-  const progressPct = state.duration > 0 ? (state.currentTime / state.duration) * 100 : 0;
+  function seekBy(deltaSeconds: number) {
+    const s = playerRef.current?.getState();
+    if (!s) return;
+    playerRef.current?.seek(Math.max(0, Math.min(s.duration, s.currentTime + deltaSeconds)));
+  }
 
   return (
     <div className="player-screen">
@@ -184,28 +207,25 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
         <h1 className="player-screen__title">{title}</h1>
 
         <div className="player-screen__progress-bar">
-          <div className="player-screen__progress-fill" style={{ width: `${progressPct}%` }} />
+          <div className="player-screen__progress-fill" ref={progressFillRef} />
         </div>
         <p className="text-dim">
-          {formatTime(state.currentTime)} / {formatTime(state.duration)}
-          {state.status === "error" ? ` · error: ${state.error}` : ""}
+          <span ref={timeTextRef}>0:00 / 0:00</span>
+          {status.status === "error" ? ` · error: ${status.error}` : ""}
         </p>
 
         <div className="player-screen__controls">
-          <FocusableItem id="player-seek-back" onEnter={() => playerRef.current?.seek(Math.max(0, state.currentTime - SEEK_STEP_SECONDS))}>
+          <FocusableItem id="player-seek-back" onEnter={() => seekBy(-SEEK_STEP_SECONDS)}>
             « {SEEK_STEP_SECONDS}s
           </FocusableItem>
           <FocusableItem
             id="player-play-pause"
             autoFocus
-            onEnter={() => (state.status === "playing" ? playerRef.current?.pause() : playerRef.current?.play())}
+            onEnter={() => (status.status === "playing" ? playerRef.current?.pause() : playerRef.current?.play())}
           >
-            {state.status === "playing" ? "Pause" : "Play"}
+            {status.status === "playing" ? "Pause" : "Play"}
           </FocusableItem>
-          <FocusableItem
-            id="player-seek-forward"
-            onEnter={() => playerRef.current?.seek(Math.min(state.duration, state.currentTime + SEEK_STEP_SECONDS))}
-          >
+          <FocusableItem id="player-seek-forward" onEnter={() => seekBy(SEEK_STEP_SECONDS)}>
             {SEEK_STEP_SECONDS}s »
           </FocusableItem>
           <FocusableItem id="player-subtitles" onEnter={openSubtitlesOverlay}>

@@ -34,6 +34,7 @@
 
 .player-screen__progress-fill {
   height: 100%;
+  width: 0; /* JS sets the real width directly via ref on each timeupdate tick — see PlayerScreen.tsx */
   background: var(--accent);
 }
 

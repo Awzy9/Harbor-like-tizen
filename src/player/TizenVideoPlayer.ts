@@ -3,6 +3,7 @@ import { checkPlaybackCompatibility } from "./PlaybackCompatibility";
 import { listAudioTracks, selectAudioTrack } from "./AudioManager";
 
 export type PlaybackStateListener = (state: PlaybackState) => void;
+export type TimeUpdateListener = (time: { currentTime: number; duration: number }) => void;
 
 /**
  * Thin wrapper around HTML5 <video> — the first-pass playback backend per
@@ -10,10 +11,19 @@ export type PlaybackStateListener = (state: PlaybackState) => void;
  * dash.js yet: Tizen's WebKit has native HLS support on most TV generations,
  * so a dedicated MSE/DASH backend only gets added once a real stream proves
  * native playback insufficient (section 22).
+ *
+ * Status changes (loading/playing/paused/ended/error) and time updates are
+ * deliberately separate subscriptions: `timeupdate` fires several times a
+ * second, and a naive "one listener gets everything" design means every
+ * control on screen re-renders on every tick just to redraw a progress bar.
+ * `onStatusChange` only fires on real state transitions; `onTimeUpdate` fires
+ * on every tick for callers (the Player screen) that want to update a
+ * progress bar/clock via direct DOM writes instead of React state.
  */
 export class TizenVideoPlayer {
   private readonly video: HTMLVideoElement;
-  private listeners = new Set<PlaybackStateListener>();
+  private statusListeners = new Set<PlaybackStateListener>();
+  private timeListeners = new Set<TimeUpdateListener>();
   private state: PlaybackState = { status: "idle", currentTime: 0, duration: 0 };
 
   constructor(container: HTMLElement) {
@@ -23,21 +33,40 @@ export class TizenVideoPlayer {
     this.video.playsInline = true;
     container.appendChild(this.video);
 
-    this.video.addEventListener("loadstart", () => this.setState({ status: "loading" }));
-    this.video.addEventListener("playing", () => this.setState({ status: "playing" }));
-    this.video.addEventListener("pause", () => this.setState({ status: "paused" }));
-    this.video.addEventListener("ended", () => this.setState({ status: "ended" }));
+    this.video.addEventListener("loadstart", () => this.setStatus({ status: "loading" }));
+    this.video.addEventListener("playing", () => this.setStatus({ status: "playing" }));
+    this.video.addEventListener("pause", () => this.setStatus({ status: "paused" }));
+    this.video.addEventListener("ended", () => this.setStatus({ status: "ended" }));
     this.video.addEventListener("error", () =>
-      this.setState({ status: "error", error: describeMediaError(this.video.error) }),
+      this.setStatus({ status: "error", error: describeMediaError(this.video.error) }),
     );
-    this.video.addEventListener("timeupdate", () =>
-      this.setState({ currentTime: this.video.currentTime, duration: this.video.duration || 0 }),
-    );
+    this.video.addEventListener("timeupdate", () => this.updateTime());
   }
 
+  /** Fires only on status/error transitions — not on every timeupdate tick. */
+  onStatusChange(listener: PlaybackStateListener): () => void {
+    this.statusListeners.add(listener);
+    return () => this.statusListeners.delete(listener);
+  }
+
+  /** Fires on every timeupdate tick (several times a second). Prefer direct DOM writes over React state in the listener. */
+  onTimeUpdate(listener: TimeUpdateListener): () => void {
+    this.timeListeners.add(listener);
+    return () => this.timeListeners.delete(listener);
+  }
+
+  /**
+   * Convenience combined subscription for callers that don't care about
+   * render cost (e.g. the developer-only Test Player screen) — fires on
+   * both status and time changes with the full merged state.
+   */
   onStateChange(listener: PlaybackStateListener): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    const unsubStatus = this.onStatusChange(listener);
+    const unsubTime = this.onTimeUpdate(() => listener(this.state));
+    return () => {
+      unsubStatus();
+      unsubTime();
+    };
   }
 
   getState(): PlaybackState {
@@ -47,7 +76,7 @@ export class TizenVideoPlayer {
   load(url: string): void {
     const compatibility = checkPlaybackCompatibility(url);
     if (compatibility.verdict === "UNSUPPORTED") {
-      this.setState({ status: "error", error: `Unsupported stream: ${compatibility.reason}` });
+      this.setStatus({ status: "error", error: `Unsupported stream: ${compatibility.reason}` });
       return;
     }
 
@@ -112,18 +141,25 @@ export class TizenVideoPlayer {
     this.video.pause();
     this.video.removeAttribute("src");
     this.video.load();
-    this.setState({ status: "idle", currentTime: 0, duration: 0 });
+    this.setStatus({ status: "idle", currentTime: 0, duration: 0 });
   }
 
   destroy(): void {
     this.stop();
-    this.listeners.clear();
+    this.statusListeners.clear();
+    this.timeListeners.clear();
     this.video.remove();
   }
 
-  private setState(partial: Partial<PlaybackState>): void {
+  private setStatus(partial: Partial<PlaybackState>): void {
     this.state = { ...this.state, ...partial };
-    for (const listener of this.listeners) listener(this.state);
+    for (const listener of this.statusListeners) listener(this.state);
+  }
+
+  private updateTime(): void {
+    this.state = { ...this.state, currentTime: this.video.currentTime, duration: this.video.duration || 0 };
+    const time = { currentTime: this.state.currentTime, duration: this.state.duration };
+    for (const listener of this.timeListeners) listener(time);
   }
 }
 

@@ -32,7 +32,15 @@ What's implemented:
   on screen (verified: 2 renders per move regardless of catalog size, not
   O(n)). The focused element auto-scrolls into view, and losing focus (e.g.
   navigating away from a button mid-screen) recovers immediately rather than
-  leaving the next keypress to "wake up" focus first.
+  leaving the next keypress to "wake up" focus first. The same scrutiny
+  applies to `TizenVideoPlayer`/`PlayerScreen`: status changes
+  (loading/playing/paused/ended/error) and per-tick time updates are
+  separate subscriptions (`onStatusChange` vs. `onTimeUpdate`), so the
+  progress bar/clock update via direct DOM writes on every `timeupdate`
+  (several times a second) without going through React state at all —
+  verified at 0 control re-renders during 1.5s of continuous playback, vs.
+  exactly 2 for an actual navigation move, regardless of how fast the video
+  is ticking underneath it.
 - **Tizen environment layer** (`src/tizen/`) — feature-detected wrappers
   around `window.tizen` (`tvinputdevice`, `application`, `systeminfo`) that
   no-op safely outside a real Tizen runtime, so the whole app runs and is
