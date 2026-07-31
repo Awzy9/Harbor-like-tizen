@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { TizenVideoPlayer } from "@/player/TizenVideoPlayer";
 import { FocusableItem } from "@/components/FocusableItem";
-import type { PlaybackState } from "@/types/player";
+import { useBackHandler } from "@/navigation/FocusManager";
+import { useNavigationStore, type NextEpisodeRef } from "@/state/navigationStore";
+import type { PlaybackState, AudioTrackInfo } from "@/types/player";
 import type { ResolvedStream } from "@/types/playback";
 import { getPlaybackProgress, savePlaybackProgress } from "@/storage/playbackProgress";
+import { addonManager } from "@/stremio/addon-client/addonManagerInstance";
+import { addonClient } from "@/stremio/addon-client/addonClientInstance";
+import { aggregateSubtitles, type AggregatedSubtitle } from "@/stremio/subtitles/SubtitleAggregator";
+import { loadSubtitleTrack } from "@/player/SubtitleManager";
 import "./PlayerScreen.css";
 
 interface PlayerScreenProps {
@@ -11,18 +17,45 @@ interface PlayerScreenProps {
   contentId: string;
   episodeId?: string;
   title: string;
+  type: string;
+  nextEpisode?: NextEpisodeRef;
 }
 
 const PROGRESS_SAVE_INTERVAL_MS = 7000;
 const SEEK_STEP_SECONDS = 10;
 // Don't bother resuming into the last few seconds — that's "finished", not "in progress".
 const RESUME_END_GUARD_SECONDS = 5;
+const NEXT_EPISODE_COUNTDOWN_SECONDS = 8;
 
-export function PlayerScreen({ stream, contentId, episodeId, title }: PlayerScreenProps) {
+type Overlay = "none" | "subtitles" | "audio";
+
+export function PlayerScreen({ stream, contentId, episodeId, title, type, nextEpisode }: PlayerScreenProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<TizenVideoPlayer | null>(null);
   const [state, setState] = useState<PlaybackState>({ status: "idle", currentTime: 0, duration: 0 });
   const hasResumedRef = useRef(false);
+  const goTo = useNavigationStore((s) => s.goTo);
+
+  const [overlay, setOverlay] = useState<Overlay>("none");
+  const [subtitles, setSubtitles] = useState<AggregatedSubtitle[] | undefined>(undefined);
+  const [activeSubtitleId, setActiveSubtitleId] = useState<string | undefined>(undefined);
+  const [audioTracks, setAudioTracks] = useState<AudioTrackInfo[]>([]);
+  const activeVttUrlRef = useRef<string | undefined>(undefined);
+
+  const [nextEpisodeCountdown, setNextEpisodeCountdown] = useState<number | undefined>(undefined);
+  const nextEpisodeDismissedRef = useRef(false);
+
+  useBackHandler(() => {
+    if (overlay !== "none") {
+      setOverlay("none");
+      return;
+    }
+    if (nextEpisodeCountdown !== undefined) {
+      dismissNextEpisode();
+      return;
+    }
+    goTo({ name: "home" });
+  });
 
   useEffect(() => {
     if (!containerRef.current || !stream.url) return;
@@ -39,6 +72,8 @@ export function PlayerScreen({ stream, contentId, episodeId, title }: PlayerScre
         if (saved && saved.position > 0 && saved.position < saved.duration - RESUME_END_GUARD_SECONDS) {
           player.seek(saved.position);
         }
+        // Audio tracks are only enumerable once the media has metadata.
+        setAudioTracks(player.listAudioTracks());
       }
     });
 
@@ -58,6 +93,7 @@ export function PlayerScreen({ stream, contentId, episodeId, title }: PlayerScre
         });
       }
       player.destroy();
+      if (activeVttUrlRef.current) URL.revokeObjectURL(activeVttUrlRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream.url]);
@@ -71,6 +107,60 @@ export function PlayerScreen({ stream, contentId, episodeId, title }: PlayerScre
     }, PROGRESS_SAVE_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [contentId, episodeId]);
+
+  useEffect(() => {
+    if (state.status === "ended" && nextEpisode && !nextEpisodeDismissedRef.current) {
+      setNextEpisodeCountdown(NEXT_EPISODE_COUNTDOWN_SECONDS);
+    }
+  }, [state.status, nextEpisode]);
+
+  useEffect(() => {
+    if (nextEpisodeCountdown === undefined) return;
+    if (nextEpisodeCountdown <= 0) {
+      goToNextEpisode();
+      return;
+    }
+    const timer = setTimeout(() => setNextEpisodeCountdown((c) => (c !== undefined ? c - 1 : undefined)), 1000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextEpisodeCountdown]);
+
+  function goToNextEpisode() {
+    if (!nextEpisode) return;
+    goTo({ name: "streamSelect", addonUrl: nextEpisode.addonUrl, type: nextEpisode.type, id: nextEpisode.id, title: nextEpisode.title });
+  }
+
+  function dismissNextEpisode() {
+    nextEpisodeDismissedRef.current = true;
+    setNextEpisodeCountdown(undefined);
+  }
+
+  async function openSubtitlesOverlay() {
+    setOverlay("subtitles");
+    if (subtitles === undefined) {
+      const result = await aggregateSubtitles(addonManager.list(), addonClient, type, contentId, stream.subtitles);
+      setSubtitles(result);
+    }
+  }
+
+  async function selectSubtitle(subtitle: AggregatedSubtitle | undefined) {
+    setOverlay("none");
+    setActiveSubtitleId(subtitle?.id);
+
+    if (!subtitle) {
+      playerRef.current?.setSubtitle(undefined);
+      return;
+    }
+
+    try {
+      const track = await loadSubtitleTrack(subtitle);
+      if (activeVttUrlRef.current) URL.revokeObjectURL(activeVttUrlRef.current);
+      activeVttUrlRef.current = track.vttUrl;
+      playerRef.current?.setSubtitle(track);
+    } catch (err) {
+      console.warn("[PlayerScreen] failed to load subtitle", err);
+    }
+  }
 
   const progressPct = state.duration > 0 ? (state.currentTime / state.duration) * 100 : 0;
 
@@ -105,8 +195,82 @@ export function PlayerScreen({ stream, contentId, episodeId, title }: PlayerScre
           >
             {SEEK_STEP_SECONDS}s »
           </FocusableItem>
+          <FocusableItem id="player-subtitles" onEnter={openSubtitlesOverlay}>
+            Subtitles
+          </FocusableItem>
+          {audioTracks.length > 1 && (
+            <FocusableItem id="player-audio" onEnter={() => setOverlay("audio")}>
+              Audio
+            </FocusableItem>
+          )}
         </div>
       </div>
+
+      {overlay === "subtitles" && (
+        <div className="player-screen__panel">
+          <h2>Subtitles</h2>
+          {subtitles === undefined ? (
+            <p className="text-dim">Loading…</p>
+          ) : (
+            <ul className="player-screen__panel-list">
+              <li>
+                <FocusableItem id="subtitle-off" autoFocus selected={activeSubtitleId === undefined} onEnter={() => selectSubtitle(undefined)}>
+                  Off
+                </FocusableItem>
+              </li>
+              {subtitles.length === 0 && <p className="text-dim">No subtitles available.</p>}
+              {subtitles.map((sub) => (
+                <li key={sub.id}>
+                  <FocusableItem
+                    id={`subtitle-${sub.id}`}
+                    selected={activeSubtitleId === sub.id}
+                    onEnter={() => selectSubtitle(sub)}
+                  >
+                    {sub.lang} <span className="text-dim">· {sub.source}</span>
+                  </FocusableItem>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {overlay === "audio" && (
+        <div className="player-screen__panel">
+          <h2>Audio</h2>
+          <ul className="player-screen__panel-list">
+            {audioTracks.map((track) => (
+              <li key={track.id}>
+                <FocusableItem
+                  id={`audio-${track.id}`}
+                  autoFocus
+                  onEnter={() => {
+                    playerRef.current?.setAudio(track);
+                    setOverlay("none");
+                  }}
+                >
+                  {track.label}
+                </FocusableItem>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {nextEpisodeCountdown !== undefined && nextEpisode && (
+        <div className="player-screen__next-episode">
+          <h2>Up Next</h2>
+          <p className="player-screen__next-episode-title">{nextEpisode.title}</p>
+          <div className="player-screen__next-episode-actions">
+            <FocusableItem id="next-episode-play" autoFocus onEnter={goToNextEpisode}>
+              Play ({nextEpisodeCountdown}s)
+            </FocusableItem>
+            <FocusableItem id="next-episode-cancel" onEnter={dismissNextEpisode}>
+              Cancel
+            </FocusableItem>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

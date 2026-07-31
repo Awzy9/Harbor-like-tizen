@@ -1,5 +1,6 @@
 import type { AudioTrackInfo, PlaybackState, SubtitleTrackInfo } from "@/types/player";
 import { checkPlaybackCompatibility } from "./PlaybackCompatibility";
+import { listAudioTracks, selectAudioTrack } from "./AudioManager";
 
 export type PlaybackStateListener = (state: PlaybackState) => void;
 
@@ -97,18 +98,14 @@ export class TizenVideoPlayer {
     });
   }
 
+  /** Only ever reflects tracks the platform actually reports (see AudioManager) — empty on most desktop browsers. */
+  listAudioTracks(): AudioTrackInfo[] {
+    return listAudioTracks(this.video);
+  }
+
   /** Selects an audio track when the platform exposes AudioTrackList (Tizen TV, not all browsers). */
   setAudio(track: AudioTrackInfo): void {
-    const audioTracks = (this.video as HTMLVideoElement & { audioTracks?: unknown }).audioTracks as
-      | { length: number; [index: number]: { id: string; enabled: boolean } }
-      | undefined;
-    if (!audioTracks) {
-      console.warn("[TizenVideoPlayer] AudioTrackList unsupported in this environment");
-      return;
-    }
-    for (let i = 0; i < audioTracks.length; i++) {
-      audioTracks[i].enabled = audioTracks[i].id === track.id;
-    }
+    selectAudioTrack(this.video, track.id);
   }
 
   stop(): void {

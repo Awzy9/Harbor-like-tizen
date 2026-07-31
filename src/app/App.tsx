@@ -73,7 +73,13 @@ function renderScreen(screen: Screen) {
       return <DetailsScreen addonUrl={screen.addonUrl} type={screen.type} id={screen.id} />;
     case "streamSelect":
       return (
-        <StreamSelectionScreen addonUrl={screen.addonUrl} type={screen.type} id={screen.id} title={screen.title} />
+        <StreamSelectionScreen
+          addonUrl={screen.addonUrl}
+          type={screen.type}
+          id={screen.id}
+          title={screen.title}
+          nextEpisode={screen.nextEpisode}
+        />
       );
     case "player":
       return (
@@ -82,6 +88,8 @@ function renderScreen(screen: Screen) {
           contentId={screen.contentId}
           episodeId={screen.episodeId}
           title={screen.title}
+          type={screen.type}
+          nextEpisode={screen.nextEpisode}
         />
       );
   }

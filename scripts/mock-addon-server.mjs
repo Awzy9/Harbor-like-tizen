@@ -24,6 +24,30 @@ const MOVIES = [
   { id: "mock:2", type: "movie", name: "Focus Ring Diaries", description: "Another mock entry to prove catalog aggregation across multiple items.", releaseInfo: "2026" },
 ];
 
+// A minimal 2-episode series, for exercising the episode list / next-episode flow.
+const SERIES = [
+  {
+    id: "mock-series:1",
+    type: "series",
+    name: "Focus Ring: The Series",
+    description: "A mock series fixture used to test episode navigation and the next-episode flow.",
+    releaseInfo: "2026",
+    videos: [
+      { id: "mock-series:1:1:1", title: "Pilot", season: 1, episode: 1 },
+      { id: "mock-series:1:1:2", title: "The Sequel", season: 1, episode: 2 },
+    ],
+  },
+];
+
+const SAMPLE_SUBTITLE_SRT = `1
+00:00:00,000 --> 00:00:02,000
+Hello from a mock subtitle track.
+
+2
+00:00:02,000 --> 00:00:04,000
+This line proves SRT-to-WebVTT conversion works.
+`;
+
 function json(res, status, body) {
   const payload = JSON.stringify(body);
   res.writeHead(status, {
@@ -69,53 +93,77 @@ function serveVideoWithRangeSupport(req, res, filePath) {
   fs.createReadStream(filePath, { start, end }).pipe(res);
 }
 
+// Episode ids are "<seriesId>:<season>:<episode>" — find the series that owns one.
+function seriesForEpisodeId(episodeId) {
+  return SERIES.find((s) => s.videos.some((v) => v.id === episodeId));
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
   const segments = url.pathname.split("/").filter(Boolean);
+  const [resource, type, rest] = segments;
 
-  if (segments[0] === "manifest.json") {
+  if (resource === "manifest.json") {
     return json(res, 200, {
       id: "org.harbor-like-tizen.mock-addon",
       name: "Mock Dev Add-on",
       version: "1.0.0",
       description: "Local-only test fixture — never a real content source.",
-      types: ["movie"],
+      types: ["movie", "series"],
       resources: ["catalog", "meta", "stream", "subtitles"],
-      catalogs: [{ type: "movie", id: "mock-movies", name: "Mock Movies", extra: [{ name: "search", isRequired: false }] }],
+      catalogs: [
+        { type: "movie", id: "mock-movies", name: "Mock Movies", extra: [{ name: "search", isRequired: false }] },
+        { type: "series", id: "mock-series", name: "Mock Series", extra: [{ name: "search", isRequired: false }] },
+      ],
     });
   }
 
-  if (segments[0] === "catalog" && segments[1] === "movie") {
-    // segments[2] is either "mock-movies.json" or "mock-movies/search=<query>.json"
+  if (resource === "catalog") {
     const searchMatch = url.pathname.match(/search=([^/]+)\.json$/);
-    let metas = MOVIES;
+    const source = type === "series" ? SERIES : MOVIES;
+    let metas = source;
     if (searchMatch) {
       const query = decodeURIComponent(searchMatch[1]).toLowerCase();
-      metas = MOVIES.filter((m) => m.name.toLowerCase().includes(query));
+      metas = source.filter((m) => m.name.toLowerCase().includes(query));
     }
-    return json(res, 200, { metas });
+    return json(res, 200, { metas: metas.map(({ videos, ...preview }) => preview) });
   }
 
-  if (segments[0] === "meta" && segments[1] === "movie") {
-    const id = decodeURIComponent(segments[2]?.replace(/\.json$/, "") ?? "");
-    const movie = MOVIES.find((m) => m.id === id);
-    if (!movie) return notFound(res);
-    return json(res, 200, { meta: { ...movie, background: undefined, runtime: "4 sec", videos: [] } });
+  if (resource === "meta") {
+    const id = decodeURIComponent(rest?.replace(/\.json$/, "") ?? "");
+    const source = type === "series" ? SERIES : MOVIES;
+    const item = source.find((m) => m.id === id);
+    if (!item) return notFound(res);
+    return json(res, 200, { meta: { ...item, background: undefined, runtime: "4 sec" } });
   }
 
-  if (segments[0] === "stream" && segments[1] === "movie") {
-    const id = decodeURIComponent(segments[2]?.replace(/\.json$/, "") ?? "");
-    if (!MOVIES.some((m) => m.id === id)) return notFound(res);
+  if (resource === "stream") {
+    const id = decodeURIComponent(rest?.replace(/\.json$/, "") ?? "");
+    const isKnownMovie = MOVIES.some((m) => m.id === id);
+    const isKnownEpisode = type === "series" && seriesForEpisodeId(id);
+    if (!isKnownMovie && !isKnownEpisode) return notFound(res);
     return json(res, 200, {
       streams: [{ url: `http://localhost:${PORT}/sample.webm`, name: "Mock Dev Add-on", title: "Local sample clip (WebM, 4s)" }],
     });
   }
 
-  if (segments[0] === "subtitles" && segments[1] === "movie") {
+  if (resource === "subtitles") {
+    const id = decodeURIComponent(rest?.replace(/\.json$/, "") ?? "");
+    // Only the first movie has a subtitle fixture — proves subtitles are per-title, not universal.
+    if (id === "mock:1") {
+      return json(res, 200, { subtitles: [{ id: "mock-sub-en", url: `http://localhost:${PORT}/subtitle-sample.srt`, lang: "en" }] });
+    }
     return json(res, 200, { subtitles: [] });
   }
 
-  if (segments[0] === "sample.webm") {
+  if (resource === "subtitle-sample.srt") {
+    const payload = SAMPLE_SUBTITLE_SRT;
+    res.writeHead(200, { "Content-Type": "text/plain", "Access-Control-Allow-Origin": "*", "Content-Length": Buffer.byteLength(payload) });
+    res.end(payload);
+    return;
+  }
+
+  if (resource === "sample.webm") {
     if (!fs.existsSync(SAMPLE_VIDEO_PATH)) return notFound(res);
     return serveVideoWithRangeSupport(req, res, SAMPLE_VIDEO_PATH);
   }

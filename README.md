@@ -12,7 +12,7 @@ The full project plan (architecture rationale, milestones, testing matrix,
 distribution process, etc.) lives in [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md).
 This README only covers what exists right now and how to run it.
 
-## Current status: Milestones 1-2 done, into 3-4
+## Current status: Milestones 1-5 done, into 6
 
 What's implemented:
 
@@ -68,13 +68,27 @@ What's implemented:
   before reaching for a heavier library. **Resume** (`src/storage/playbackProgress.ts`)
   saves position every ~7s plus on pause/unmount and seeks back on reopening
   the same title.
+- **Subtitles** (`src/stremio/subtitles/`, `src/player/SubtitleManager.ts`) —
+  aggregates subtitles across every add-on declaring subtitle support for the
+  type plus any embedded directly in the resolved stream; converts SRT to
+  WebVTT (the only format `<track>` renders natively) and falls back to a
+  visible failure rather than mistranslating anything fancier (ASS/SSA).
+  Selectable from the Player screen's Subtitles panel.
+- **Audio tracks** (`src/player/AudioManager.ts`) — wraps
+  `HTMLMediaElement.audioTracks`; the Player screen's Audio button only
+  appears when the platform actually reports more than one track — never a
+  fabricated list.
+- **Next episode** — Details screen computes the next episode from the
+  sorted episode list and threads it through Stream Selection into the
+  Player; on playback end, an "Up Next" panel counts down and auto-advances
+  (or Play Now / Cancel).
 - **Local mock add-on** (`scripts/mock-addon-server.mjs`, run via
   `npm run mock-addon`) — a small self-contained Stremio-protocol server used
   only for development, so the full install → catalog → details → stream
-  select → play pipeline can be exercised end-to-end without any real,
-  legally-questionable content source. Supports HTTP Range requests (needed
-  for `<video>` seeking) and serves the bundled sample clip as its one
-  "stream".
+  select → play → next-episode pipeline can be exercised end-to-end without
+  any real, legally-questionable content source. Serves a 2-movie catalog, a
+  2-episode mock series, and one subtitle fixture; supports HTTP Range
+  requests (needed for `<video>` seeking).
 - **Test screens** (now under Settings → Developer Tools) — Test Remote (live
   key-event log + a focusable grid) and Test Player (loads a bundled local
   clip plus an external HLS test stream) validate the remote-nav and
@@ -83,9 +97,8 @@ What's implemented:
 What's explicitly **not** built yet (see `docs/PROJECT_PLAN.md` for the full
 roadmap): account linking/QR flow and add-on sync, cross-add-on
 metadata/catalog merging (currently first-success-wins / one row per
-add-on+catalog, not deduplicated across add-ons), subtitle format conversion,
-audio-track selection UI, series/episode "next episode" flow, and TV
-packaging/signing.
+add-on+catalog, not deduplicated across add-ons), ASS/SSA subtitle
+conversion, offline mode, and TV packaging/signing.
 
 ## Requirements
 

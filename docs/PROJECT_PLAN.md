@@ -522,10 +522,10 @@ App launches on Samsung OLED and can be signed/installed; remote navigation, Hom
 18. Test direct MP4 playback. **(done in a real browser; needs real-TV verification)**
 19. Test HLS. **(external test stream wired into Test Player; real HLS support unverified without a Tizen TV)**
 20. Test DASH/MSE where applicable.
-21. Implement subtitles. **(not started — Stream/Subtitle types exist but no UI/track wiring yet)**
-22. Implement audio selection.
+21. Implement subtitles. **(done — SubtitleAggregator + SRT-to-VTT conversion + Player screen panel; ASS/SSA intentionally unsupported)**
+22. Implement audio selection. **(done — AudioManager wraps AudioTrackList; UI only appears when >1 track is actually reported)**
 23. Implement resume. **(done — position saved every ~7s + on pause/unmount, resumed on reopen)**
-24. Implement series/episode playback. **(partial — Details screen lists episodes and routes to streams; no "next episode" flow yet)**
+24. Implement series/episode playback. **(done — Details screen lists episodes; Player shows an "Up Next" countdown that auto-advances)**
 25. Implement stream ranking. **(done — StreamRanker, text-heuristic based)**
 26. Implement error handling.
 27. Optimize memory/network/image loading.

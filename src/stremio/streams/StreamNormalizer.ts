@@ -18,6 +18,7 @@ export function normalizeStreams(streams: Stream[], addonId: string): ResolvedSt
       title: s.title,
       quality: detectQualityLabel(`${s.name ?? ""} ${s.title ?? ""}`),
       behaviorHints: s.behaviorHints,
+      subtitles: s.subtitles,
       addonId,
     }));
 }

@@ -3,7 +3,7 @@ import { FocusableItem } from "@/components/FocusableItem";
 import { addonManager } from "@/stremio/addon-client/addonManagerInstance";
 import { addonClient } from "@/stremio/addon-client/addonClientInstance";
 import { resolveStreams, type StreamResolutionResult } from "@/stremio/streams/StreamResolver";
-import { useNavigationStore } from "@/state/navigationStore";
+import { useNavigationStore, type NextEpisodeRef } from "@/state/navigationStore";
 import "./StreamSelectionScreen.css";
 
 interface StreamSelectionScreenProps {
@@ -11,9 +11,10 @@ interface StreamSelectionScreenProps {
   type: string;
   id: string;
   title: string;
+  nextEpisode?: NextEpisodeRef;
 }
 
-export function StreamSelectionScreen({ type, id, title }: StreamSelectionScreenProps) {
+export function StreamSelectionScreen({ type, id, title, nextEpisode }: StreamSelectionScreenProps) {
   const [result, setResult] = useState<StreamResolutionResult | undefined>(undefined);
   const goTo = useNavigationStore((s) => s.goTo);
 
@@ -55,7 +56,7 @@ export function StreamSelectionScreen({ type, id, title }: StreamSelectionScreen
                 id={`stream-${index}`}
                 className="stream-selection-screen__item"
                 autoFocus={index === 0}
-                onEnter={() => goTo({ name: "player", stream, contentId: id, title })}
+                onEnter={() => goTo({ name: "player", stream, contentId: id, title, type, nextEpisode })}
               >
                 <div className="stream-selection-screen__item-title">{stream.title ?? stream.name ?? "Stream"}</div>
                 <div className="text-dim stream-selection-screen__item-meta">

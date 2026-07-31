@@ -3,7 +3,7 @@ import { FocusableItem } from "@/components/FocusableItem";
 import { addonManager } from "@/stremio/addon-client/addonManagerInstance";
 import { addonClient } from "@/stremio/addon-client/addonClientInstance";
 import { getAggregatedMeta } from "@/stremio/metadata/MetadataAggregator";
-import type { Meta } from "@/stremio/addon-client/types";
+import type { Meta, MetaVideo } from "@/stremio/addon-client/types";
 import { useNavigationStore } from "@/state/navigationStore";
 import "./DetailsScreen.css";
 
@@ -61,23 +61,39 @@ export function DetailsScreen({ addonUrl, type, id }: DetailsScreenProps) {
             <>
               <h2>Episodes</h2>
               <div className="details-screen__episodes">
-                {meta.videos.map((video) => (
-                  <FocusableItem
-                    key={video.id}
-                    id={`episode-${video.id}`}
-                    className="details-screen__episode"
-                    onEnter={() =>
-                      goTo({ name: "streamSelect", addonUrl, type, id: video.id, title: video.title || meta.name })
-                    }
-                  >
-                    <div className="details-screen__episode-title">
-                      {video.season !== undefined && video.episode !== undefined
-                        ? `S${video.season}E${video.episode} · `
-                        : ""}
-                      {video.title}
-                    </div>
-                  </FocusableItem>
-                ))}
+                {(() => {
+                  const sorted = sortVideos(meta.videos);
+                  return sorted.map((video, index) => {
+                    const next = sorted[index + 1];
+                    const nextEpisode = next
+                      ? { addonUrl, type, id: next.id, title: next.title || meta.name }
+                      : undefined;
+                    return (
+                      <FocusableItem
+                        key={video.id}
+                        id={`episode-${video.id}`}
+                        className="details-screen__episode"
+                        onEnter={() =>
+                          goTo({
+                            name: "streamSelect",
+                            addonUrl,
+                            type,
+                            id: video.id,
+                            title: video.title || meta.name,
+                            nextEpisode,
+                          })
+                        }
+                      >
+                        <div className="details-screen__episode-title">
+                          {video.season !== undefined && video.episode !== undefined
+                            ? `S${video.season}E${video.episode} · `
+                            : ""}
+                          {video.title}
+                        </div>
+                      </FocusableItem>
+                    );
+                  });
+                })()}
               </div>
             </>
           ) : (
@@ -94,4 +110,8 @@ export function DetailsScreen({ addonUrl, type, id }: DetailsScreenProps) {
       </div>
     </div>
   );
+}
+
+function sortVideos(videos: MetaVideo[]): MetaVideo[] {
+  return [...videos].sort((a, b) => (a.season ?? 0) - (b.season ?? 0) || (a.episode ?? 0) - (b.episode ?? 0));
 }

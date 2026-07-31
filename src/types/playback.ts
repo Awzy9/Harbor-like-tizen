@@ -1,3 +1,5 @@
+import type { Subtitle } from "@/stremio/addon-client/types";
+
 export interface PlaybackProgress {
   contentId: string;
   episodeId?: string;
@@ -13,5 +15,6 @@ export interface ResolvedStream {
   title?: string;
   quality?: string;
   behaviorHints?: Record<string, unknown>;
+  subtitles?: Subtitle[];
   addonId: string;
 }
