@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "package": "npm run build && node scripts/make-wgt.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "mock-addon": "node scripts/mock-addon-server.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

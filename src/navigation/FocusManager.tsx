@@ -71,6 +71,17 @@ export function FocusProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     return subscribeToRemote((action) => {
+      // A real <input>/<textarea> (e.g. the add-on URL field) needs native
+      // text editing — arrow keys move the cursor, Enter submits — so once
+      // one has real DOM focus, spatial nav must get out of the way
+      // entirely instead of preventDefault-ing those keys out from under it.
+      // Back is the one exception: it exits the field back to spatial nav.
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+        if (action === "back") active.blur();
+        return;
+      }
+
       const focusedId = focusedIdRef.current;
 
       if (action === "enter") {

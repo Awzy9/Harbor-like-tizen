@@ -55,7 +55,14 @@ export class TizenVideoPlayer {
   }
 
   play(): void {
-    void this.video.play();
+    // play() returns a Promise that rejects with AbortError if pause() (or a
+    // new load()) interrupts it before it resolves — expected under rapid
+    // play/pause toggling (including React StrictMode's mount/unmount/
+    // remount dance in dev), not a real playback failure worth surfacing.
+    this.video.play().catch((err: unknown) => {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      console.warn("[TizenVideoPlayer] play() failed", err);
+    });
   }
 
   pause(): void {

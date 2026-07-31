@@ -93,6 +93,17 @@ export function subscribeToRemote(handler: (action: RemoteAction) => void): () =
   const onKeyDown = (event: KeyboardEvent) => {
     const action = KEYCODE_TO_ACTION[event.keyCode] ?? browserFallback(event);
     if (!action) return;
+
+    // A focused <input>/<textarea> needs real cursor/typing/submit behavior,
+    // so don't preventDefault out from under it — except Back, which still
+    // needs to reach the handler so it can blur the field.
+    const active = document.activeElement;
+    const isTextInput = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement;
+    if (isTextInput && action !== "back") {
+      handler(action); // still surface it (e.g. for a live remote-action log) without blocking native behavior
+      return;
+    }
+
     event.preventDefault();
     handler(action);
   };

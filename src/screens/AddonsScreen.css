@@ -1,0 +1,66 @@
+.addons-screen h2 {
+  font-size: 1.2rem;
+  margin: 1.5rem 0 1rem;
+}
+
+.addons-screen h2:first-child {
+  margin-top: 0;
+}
+
+.addons-screen__install-row {
+  display: flex;
+  gap: 1rem;
+  align-items: stretch;
+  max-width: 720px;
+}
+
+.addons-screen__install-row .focusable-text-field {
+  flex: 1 1 auto;
+}
+
+.addons-screen__install-row .focusable-item {
+  flex: 0 0 auto;
+  padding: 0.8rem 1.4rem;
+  background: var(--bg-elevated);
+}
+
+.addons-screen__error {
+  color: #ff8080;
+  margin-top: 0.75rem;
+}
+
+.addons-screen__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 720px;
+}
+
+.addons-screen__row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.addons-screen__toggle {
+  flex: 1 1 auto;
+  padding: 0.8rem 1.2rem;
+  background: var(--bg-elevated);
+}
+
+.addons-screen__name {
+  font-weight: 600;
+}
+
+.addons-screen__meta {
+  font-size: 0.85rem;
+  margin-top: 0.2rem;
+}
+
+.addons-screen__remove {
+  flex: 0 0 auto;
+  padding: 0.8rem 1.2rem;
+  background: var(--bg-elevated);
+}

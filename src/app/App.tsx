@@ -1,19 +1,29 @@
 import { FocusProvider, useBackHandler } from "@/navigation/FocusManager";
 import { FocusableItem } from "@/components/FocusableItem";
-import { useNavigationStore, type ScreenId } from "@/state/navigationStore";
+import { useNavigationStore, type Screen, type ScreenName } from "@/state/navigationStore";
 import { exitApplication } from "@/tizen/lifecycle";
 import { HomeScreen } from "@/screens/HomeScreen";
 import { SettingsScreen } from "@/screens/SettingsScreen";
 import { TestPlayerScreen } from "@/screens/TestPlayerScreen";
 import { TestRemoteScreen } from "@/screens/TestRemoteScreen";
+import { AddonsScreen } from "@/screens/AddonsScreen";
+import { SearchScreen } from "@/screens/SearchScreen";
+import { DetailsScreen } from "@/screens/DetailsScreen";
+import { StreamSelectionScreen } from "@/screens/StreamSelectionScreen";
+import { PlayerScreen } from "@/screens/PlayerScreen";
 import "./App.css";
 
-const NAV_ITEMS: Array<{ id: ScreenId; label: string }> = [
-  { id: "home", label: "Home" },
-  { id: "testRemote", label: "Test Remote" },
-  { id: "testPlayer", label: "Test Player" },
-  { id: "settings", label: "Settings" },
+const NAV_ITEMS: Array<{ name: ScreenName; label: string }> = [
+  { name: "home", label: "Home" },
+  { name: "search", label: "Search" },
+  { name: "addons", label: "Add-ons" },
+  { name: "settings", label: "Settings" },
 ];
+
+// Screens reachable only by drilling in from another screen (not top-level
+// nav) fall back to Home on Back rather than whatever top-level tab happened
+// to be selected last.
+const DRILL_IN_SCREENS: ScreenName[] = ["details", "streamSelect", "player", "testPlayer", "testRemote"];
 
 function Shell() {
   const { screen, goTo } = useNavigationStore();
@@ -21,38 +31,59 @@ function Shell() {
   // Back returns to Home first, then exits from Home — on a real TV, exiting
   // is the only way back to Smart Hub, so it must never be a dead end, but
   // it also shouldn't be the *first* thing Back does from every screen.
-  useBackHandler(() => (screen === "home" ? exitApplication() : goTo("home")));
+  useBackHandler(() => (screen.name === "home" ? exitApplication() : goTo({ name: "home" })));
 
   return (
     <div className="app-shell">
-      <nav className="app-nav safe-area" aria-label="Main navigation">
-        {NAV_ITEMS.map((item, index) => (
-          <FocusableItem
-            key={item.id}
-            id={`nav-${item.id}`}
-            autoFocus={index === 0}
-            selected={screen === item.id}
-            onEnter={() => goTo(item.id)}
-          >
-            <span className="app-nav__label">{item.label}</span>
-          </FocusableItem>
-        ))}
-      </nav>
+      {!DRILL_IN_SCREENS.includes(screen.name) && (
+        <nav className="app-nav safe-area" aria-label="Main navigation">
+          {NAV_ITEMS.map((item, index) => (
+            <FocusableItem
+              key={item.name}
+              id={`nav-${item.name}`}
+              autoFocus={index === 0}
+              selected={screen.name === item.name}
+              onEnter={() => goTo({ name: item.name } as Screen)}
+            >
+              <span className="app-nav__label">{item.label}</span>
+            </FocusableItem>
+          ))}
+        </nav>
+      )}
       <main className="app-content">{renderScreen(screen)}</main>
     </div>
   );
 }
 
-function renderScreen(screen: ScreenId) {
-  switch (screen) {
+function renderScreen(screen: Screen) {
+  switch (screen.name) {
     case "home":
       return <HomeScreen />;
+    case "search":
+      return <SearchScreen />;
+    case "addons":
+      return <AddonsScreen />;
     case "settings":
       return <SettingsScreen />;
     case "testPlayer":
       return <TestPlayerScreen />;
     case "testRemote":
       return <TestRemoteScreen />;
+    case "details":
+      return <DetailsScreen addonUrl={screen.addonUrl} type={screen.type} id={screen.id} />;
+    case "streamSelect":
+      return (
+        <StreamSelectionScreen addonUrl={screen.addonUrl} type={screen.type} id={screen.id} title={screen.title} />
+      );
+    case "player":
+      return (
+        <PlayerScreen
+          stream={screen.stream}
+          contentId={screen.contentId}
+          episodeId={screen.episodeId}
+          title={screen.title}
+        />
+      );
   }
 }
 

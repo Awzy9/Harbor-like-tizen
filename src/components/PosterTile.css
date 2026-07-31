@@ -1,0 +1,39 @@
+.poster-tile {
+  flex: 0 0 auto;
+  width: 160px;
+  height: 240px;
+  background: var(--bg-elevated);
+  position: relative;
+  overflow: hidden;
+}
+
+.poster-tile__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.poster-tile__fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.poster-tile__label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.8rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

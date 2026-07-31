@@ -509,24 +509,24 @@ App launches on Samsung OLED and can be signed/installed; remote navigation, Hom
 5. Build and launch it on the actual TV.
 6. Implement remote-control navigation. **(done in this repo, browser-tested; needs real-TV verification)**
 7. Build the basic Harbor-style UI. **(Milestone-1 placeholder screens done)**
-8. Implement the Stremio add-on protocol client. **(core client done in this repo)**
-9. Load a real add-on manifest.
-10. Display catalogs.
-11. Display metadata/details.
-12. Implement search.
-13. Implement account linking.
-14. Implement add-on synchronization.
-15. Implement library synchronization.
-16. Implement stream resolution.
+8. Implement the Stremio add-on protocol client. **(done in this repo)**
+9. Load a real add-on manifest. **(done — Add-ons screen installs by manifest URL)**
+10. Display catalogs. **(done — CatalogAggregator + Home rows)**
+11. Display metadata/details. **(done — MetadataAggregator + Details screen)**
+12. Implement search. **(done — SearchService + Search screen)**
+13. Implement account linking. **(not started — see Risk 1)**
+14. Implement add-on synchronization. **(not started — depends on 13)**
+15. Implement library synchronization. **(not started — depends on 13)**
+16. Implement stream resolution. **(done — StreamResolver/Normalizer + Stream Selection screen)**
 17. Build the Samsung TV video player. **(HTML5-video baseline done in this repo)**
-18. Test direct MP4 playback.
-19. Test HLS.
+18. Test direct MP4 playback. **(done in a real browser; needs real-TV verification)**
+19. Test HLS. **(external test stream wired into Test Player; real HLS support unverified without a Tizen TV)**
 20. Test DASH/MSE where applicable.
-21. Implement subtitles.
+21. Implement subtitles. **(not started — Stream/Subtitle types exist but no UI/track wiring yet)**
 22. Implement audio selection.
-23. Implement resume.
-24. Implement series/episode playback.
-25. Implement stream ranking.
+23. Implement resume. **(done — position saved every ~7s + on pause/unmount, resumed on reopen)**
+24. Implement series/episode playback. **(partial — Details screen lists episodes and routes to streams; no "next episode" flow yet)**
+25. Implement stream ranking. **(done — StreamRanker, text-heuristic based)**
 26. Implement error handling.
 27. Optimize memory/network/image loading.
 28. Test on real Samsung OLED hardware.

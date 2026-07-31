@@ -12,16 +12,19 @@ The full project plan (architecture rationale, milestones, testing matrix,
 distribution process, etc.) lives in [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md).
 This README only covers what exists right now and how to run it.
 
-## Current status: Milestone 1 (+ early Milestone 2 groundwork)
+## Current status: Milestones 1-2 done, into 3-4
 
 What's implemented:
 
-- **App shell** — a Vite + React + TypeScript Tizen web app that boots into a
-  4-item nav bar (Home / Test Remote / Test Player / Settings).
+- **App shell** — a Vite + React + TypeScript Tizen web app with a top-level
+  nav bar (Home / Search / Add-ons / Settings); Test Remote and Test Player
+  moved under Settings → Developer Tools.
 - **TV remote navigation** (`src/tizen/remote.ts`, `src/navigation/`) — a
   spatial-navigation focus system driven by DOM rects, so any grid/row layout
   is navigable with just Up/Down/Left/Right/Enter/Back, with a visible focus
-  ring (`src/components/FocusableItem.tsx`). Works identically with arrow
+  ring (`src/components/FocusableItem.tsx`). A focused `<input>` (the add-on
+  URL field, search box) gets real native text editing — spatial nav steps
+  aside for it — with Back exiting the field. Works identically with arrow
   keys in a desktop browser and with an actual Samsung remote.
 - **Tizen environment layer** (`src/tizen/`) — feature-detected wrappers
   around `window.tizen` (`tvinputdevice`, `application`, `systeminfo`) that
@@ -32,8 +35,25 @@ What's implemented:
   `getSubtitles` against the public add-on protocol, with request timeouts,
   response-size caps, JSON/shape validation, and manifest-declared-resource
   checks, since add-ons are untrusted third-party services. `AddonManager`
-  persists the installed-add-on list to local storage. No add-ons are
-  hard-coded anywhere.
+  persists the installed-add-on list to local storage. **Add-ons screen**
+  lets you install/enable/disable/remove add-ons by manifest URL — no add-on
+  is ever hard-coded.
+- **Catalog aggregation** (`src/stremio/catalog/CatalogAggregator.ts`) — Home
+  renders one row per installed add-on × declared catalog, fetched in
+  parallel with per-row failure isolation (a broken add-on shows as one
+  failed row, not a broken Home screen).
+- **Metadata aggregation** (`src/stremio/metadata/MetadataAggregator.ts`) +
+  **Details screen** — fetches meta preferring the add-on a catalog tile came
+  from, falling back to any other add-on that declares meta support for the
+  type.
+- **Search** (`src/stremio/catalog/SearchService.ts` + Search screen) —
+  queries every catalog that declares a `search` extra, deduplicated across
+  add-ons.
+- **Stream resolution** (`src/stremio/streams/`) — `StreamResolver` collects
+  streams across add-ons per title/episode, `StreamNormalizer` drops
+  non-http(s) streams (no torrent engine/YouTube embedding by design),
+  `StreamRanker` scores by parsed quality/HDR text heuristics. Stream
+  Selection and Player screens wire this into actual playback.
 - **Account service seam** (`src/stremio/account/`) — the
   `StremioAccountService` interface is defined but deliberately
   **unimplemented** (`UnimplementedAccountService` rejects every call). The
@@ -41,22 +61,31 @@ What's implemented:
   implementation needs its own research pass against Stremio Web's current
   login/sync flow before it's built — see `docs/PROJECT_PLAN.md` sections 13
   and 59 (Risk 1).
-- **Baseline video player** (`src/player/TizenVideoPlayer.ts`) — a thin
-  `<video>` wrapper (load/play/pause/seek/setVolume/setSubtitle/setAudio/
-  stop/destroy) plus a lightweight `PlaybackCompatibility` pre-flight check.
-  No HLS.js/DASH.js yet on purpose — Tizen's native HLS support is the first
-  thing to prove out before reaching for a heavier library.
-- **Test screens** — a Test Remote screen (live key-event log + a focusable
-  grid) and a Test Player screen (loads public test MP4/HLS streams) exist
-  specifically to validate the remote-nav and playback pipelines in
-  isolation, per the plan's "prove the pipes work before building the real
-  UI" approach.
+- **Video player** (`src/player/TizenVideoPlayer.ts`) — a `<video>` wrapper
+  (load/play/pause/seek/setVolume/setSubtitle/setAudio/stop/destroy) plus a
+  lightweight `PlaybackCompatibility` pre-flight check. No HLS.js/DASH.js yet
+  on purpose — Tizen's native HLS support is the first thing to prove out
+  before reaching for a heavier library. **Resume** (`src/storage/playbackProgress.ts`)
+  saves position every ~7s plus on pause/unmount and seeks back on reopening
+  the same title.
+- **Local mock add-on** (`scripts/mock-addon-server.mjs`, run via
+  `npm run mock-addon`) — a small self-contained Stremio-protocol server used
+  only for development, so the full install → catalog → details → stream
+  select → play pipeline can be exercised end-to-end without any real,
+  legally-questionable content source. Supports HTTP Range requests (needed
+  for `<video>` seeking) and serves the bundled sample clip as its one
+  "stream".
+- **Test screens** (now under Settings → Developer Tools) — Test Remote (live
+  key-event log + a focusable grid) and Test Player (loads a bundled local
+  clip plus an external HLS test stream) validate the remote-nav and
+  playback pipelines in isolation.
 
 What's explicitly **not** built yet (see `docs/PROJECT_PLAN.md` for the full
-roadmap): real catalog/metadata aggregation across add-ons, search, account
-linking/QR flow, stream ranking, subtitle format conversion, resume/continue
-watching persistence, series/episode navigation, and everything after
-Milestone 2.
+roadmap): account linking/QR flow and add-on sync, cross-add-on
+metadata/catalog merging (currently first-success-wins / one row per
+add-on+catalog, not deduplicated across add-ons), subtitle format conversion,
+audio-track selection UI, series/episode "next episode" flow, and TV
+packaging/signing.
 
 ## Requirements
 
@@ -82,7 +111,13 @@ browser-safe behavior (see `src/tizen/env.ts`).
 ```bash
 npm run build      # type-checks then produces dist/ via Vite
 npm run typecheck  # tsc --noEmit only
+npm run mock-addon # runs a local test add-on at http://localhost:7777/manifest.json
 ```
+
+To try the full pipeline without any real add-on: run `npm run mock-addon` in
+one terminal, `npm run dev` in another, then in the app go to **Add-ons** and
+install `http://localhost:7777/manifest.json`. Its catalog, details, and
+stream all point back to the bundled local sample clip.
 
 ## Packaging for a real Samsung TV
 
@@ -102,16 +137,22 @@ packaging a real build.
 ## Project structure
 
 ```
+scripts/
+`-- mock-addon-server.mjs  # local dev-only Stremio-protocol test add-on
+
 src/
 |-- app/          # App shell, top-level nav bar, screen switcher
-|-- components/   # Shared UI (FocusableItem, etc.)
+|-- components/   # Shared UI (FocusableItem, FocusableTextField, PosterTile)
 |-- navigation/   # Spatial-navigation focus system
 |-- player/       # TizenVideoPlayer, PlaybackCompatibility
-|-- screens/      # Home, Settings, TestPlayer, TestRemote
-|-- state/        # Zustand stores
-|-- storage/      # Typed localStorage wrapper
+|-- screens/      # Home, Search, Addons, Details, StreamSelection, Player, Settings, TestPlayer, TestRemote
+|-- state/        # Zustand stores (navigation)
+|-- storage/      # Typed localStorage wrapper, playback progress
 |-- stremio/
-|   |-- addon-client/  # Manifest/catalog/meta/stream/subtitle protocol client
+|   |-- addon-client/  # Manifest/catalog/meta/stream/subtitle protocol client + AddonManager
+|   |-- catalog/       # CatalogAggregator, SearchService
+|   |-- metadata/      # MetadataAggregator
+|   |-- streams/       # StreamResolver, StreamNormalizer, StreamRanker
 |   `-- account/       # StremioAccountService interface (unimplemented)
 |-- tizen/        # window.tizen wrappers: remote, lifecycle, device
 `-- types/        # Shared domain types

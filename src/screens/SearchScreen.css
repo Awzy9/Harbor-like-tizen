@@ -1,0 +1,14 @@
+.search-screen {
+  max-width: 900px;
+}
+
+.search-screen .focusable-text-field {
+  margin-bottom: 1.5rem;
+  max-width: 500px;
+}
+
+.search-screen__results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}

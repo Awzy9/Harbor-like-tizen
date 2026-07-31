@@ -1,0 +1,97 @@
+import { useEffect, useState } from "react";
+import { FocusableItem } from "@/components/FocusableItem";
+import { addonManager } from "@/stremio/addon-client/addonManagerInstance";
+import { addonClient } from "@/stremio/addon-client/addonClientInstance";
+import { getAggregatedMeta } from "@/stremio/metadata/MetadataAggregator";
+import type { Meta } from "@/stremio/addon-client/types";
+import { useNavigationStore } from "@/state/navigationStore";
+import "./DetailsScreen.css";
+
+interface DetailsScreenProps {
+  addonUrl: string;
+  type: string;
+  id: string;
+}
+
+type LoadState = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready"; meta: Meta };
+
+export function DetailsScreen({ addonUrl, type, id }: DetailsScreenProps) {
+  const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const goTo = useNavigationStore((s) => s.goTo);
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ kind: "loading" });
+
+    const preferredAddon = addonManager.list().find((a) => a.transportUrl === addonUrl);
+    if (!preferredAddon) {
+      setState({ kind: "error", message: "This add-on is no longer installed." });
+      return;
+    }
+
+    getAggregatedMeta(preferredAddon, addonManager.list(), addonClient, type, id)
+      .then(({ meta }) => {
+        if (!cancelled) setState({ kind: "ready", meta });
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setState({ kind: "error", message: err instanceof Error ? err.message : "Failed to load" });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [addonUrl, type, id]);
+
+  if (state.kind === "loading") return <p className="text-dim">Loading…</p>;
+  if (state.kind === "error") return <p className="details-screen__error">{state.message}</p>;
+
+  const { meta } = state;
+
+  return (
+    <div className="details-screen" style={meta.background ? { backgroundImage: `url(${meta.background})` } : undefined}>
+      <div className="details-screen__scrim">
+        <div className="details-screen__content">
+          <h1>{meta.name}</h1>
+          <p className="text-dim">
+            {[meta.releaseInfo, meta.runtime, meta.genres?.join(", ")].filter(Boolean).join(" · ")}
+          </p>
+          {meta.description && <p className="details-screen__description">{meta.description}</p>}
+
+          {meta.videos && meta.videos.length > 0 ? (
+            <>
+              <h2>Episodes</h2>
+              <div className="details-screen__episodes">
+                {meta.videos.map((video) => (
+                  <FocusableItem
+                    key={video.id}
+                    id={`episode-${video.id}`}
+                    className="details-screen__episode"
+                    onEnter={() =>
+                      goTo({ name: "streamSelect", addonUrl, type, id: video.id, title: video.title || meta.name })
+                    }
+                  >
+                    <div className="details-screen__episode-title">
+                      {video.season !== undefined && video.episode !== undefined
+                        ? `S${video.season}E${video.episode} · `
+                        : ""}
+                      {video.title}
+                    </div>
+                  </FocusableItem>
+                ))}
+              </div>
+            </>
+          ) : (
+            <FocusableItem
+              id="details-watch"
+              className="details-screen__watch"
+              autoFocus
+              onEnter={() => goTo({ name: "streamSelect", addonUrl, type, id: meta.id, title: meta.name })}
+            >
+              Watch
+            </FocusableItem>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

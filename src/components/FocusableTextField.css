@@ -1,0 +1,24 @@
+.focusable-text-field {
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  padding: 2px;
+  transition: box-shadow 120ms ease;
+}
+
+.focusable-text-field.is-focused {
+  box-shadow: 0 0 0 4px var(--focus-ring-color, #4da3ff);
+}
+
+.focusable-text-field__input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  padding: 0.7rem 1rem;
+  font-size: 1rem;
+}
+
+.focusable-text-field__input::placeholder {
+  color: var(--text-dim);
+}

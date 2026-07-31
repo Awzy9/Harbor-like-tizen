@@ -13,6 +13,11 @@
   background: var(--bg-elevated);
 }
 
+.settings-screen h2 {
+  font-size: 1.1rem;
+  margin: 2rem 0 1rem;
+}
+
 .settings-device-info {
   margin-top: 2rem;
 }
