@@ -170,18 +170,70 @@ stream all point back to the bundled local sample clip.
 
 ## Packaging for a real Samsung TV
 
-Not yet automated in this repo — `npm run package` is a placeholder for a
-future signing/`.wgt`-packaging script. For now, follow
-`docs/PROJECT_PLAN.md` sections 4-7 and 53: install Tizen Studio or the VS
-Code Tizen extension, generate a certificate profile via the Samsung
-Certificate Manager (**back it up** — losing it complicates future updates),
-enable Developer Mode on the TV (Smart Hub → Apps → App Settings → `12345` →
-Developer Mode ON), add the TV to the Tizen Device Manager on port 26101,
-then build/sign/install the `dist/` output as a `.wgt` from Tizen Studio.
+`npm run package` builds the app and stages `dist/` as a valid Tizen widget
+project (copies `config.xml` next to `index.html` — Vite only copies
+`public/`, and `config.xml` isn't a browser asset, so without this step
+`dist/` is missing the one file Tizen packaging actually requires). Signing
+and installing still needs your own Samsung certificate and either Tizen
+Studio or the `tizen`/`sdb` CLI — neither belongs in this repo or should be
+automated with someone else's private certificate.
 
-`config.xml`'s `tizen:application id`/`package` are placeholders
-(`HbrTzn00001`) — regenerate them to match your own certificate before
-packaging a real build.
+1. **Install the tooling.** Tizen Studio (Samsung's official IDE, bundles
+   the Certificate Manager, Device Manager, emulator, and CLI) is the most
+   reliable path: install it, then in its Package Manager install the **TV
+   Extension** and **Samsung Certificate Extension**. The VS Code Tizen
+   extension is a lighter alternative for day-to-day editing, but still
+   relies on the same underlying SDK/CLI, so Tizen Studio (or at least its
+   command-line tools) ends up installed either way.
+2. **Create a certificate profile.** Tizen Studio → Certificate Manager →
+   create a new profile, signing in with a Samsung Account when prompted.
+   This generates an author certificate plus a Samsung/Tizen distributor
+   certificate. **Back this up somewhere safe** — losing it means you can't
+   sign updates compatible with whatever's already installed on the TV.
+3. **Regenerate `config.xml`'s app identity to match your certificate.**
+   `tizen:application id="HbrTzn00001.HarborLikeTizen"` and
+   `package="HbrTzn00001"` in `config.xml` are placeholders. Tizen Studio's
+   "New Tizen Project" flow (or the Certificate Manager) will show/generate
+   the correct 10-character package prefix tied to your certificate —
+   update both attributes in `config.xml` to match before packaging.
+4. **Enable Developer Mode on the TV.** Smart Hub → Apps → (on the Apps
+   screen) open the app settings/menu → enter `12345` → toggle Developer IP
+   / Developer Mode ON → enter your computer's IP address when prompted →
+   the TV reboots. Confirm the TV's own IP under Settings → General →
+   Network → Network Status — you'll need it in the next step. (Exact menu
+   wording has shifted across Tizen OS versions; if `12345` doesn't surface
+   it, search "\[your TV year] Tizen developer mode" — the mechanism is the
+   same, only the exact taps differ.)
+5. **Connect the TV.** Same network as your dev machine (some routers'
+   guest/isolated Wi-Fi networks block this — use the main network if the
+   TV won't connect). In Tizen Studio's Device Manager, add the TV by its
+   IP; it connects on port 26101 and should show as connected.
+6. **Build and package:**
+   ```bash
+   npm run package   # builds, then stages dist/ with config.xml
+   ```
+   Then either import `dist/` into Tizen Studio as an existing Tizen Web
+   Project (File → New → Tizen Project From Existing Sources, Web
+   Application template, TV profile) and use its Build/Run buttons — this
+   is the most forgiving path since it handles signing and install through
+   the GUI — or use the CLI directly (flags vary by Tizen Studio version,
+   check `tizen package --help`):
+   ```bash
+   tizen package -t wgt -s <your-certificate-profile-name> -- dist
+   tizen install -n <output>.wgt -t <device-id>   # device-id from `sdb devices`
+   ```
+7. **Launch it** from the TV's Apps screen, or directly from Tizen Studio's
+   Run button. First-run failures are almost always one of: certificate
+   profile doesn't match `config.xml`'s package id, TV and computer aren't
+   actually on the same network segment, or Developer Mode's registered IP
+   is stale (re-enter it if you changed networks).
+8. **Debug** via Tizen Studio's Web Inspector (or plain Chrome DevTools —
+   the Tizen WebKit runtime exposes a remote debugging endpoint once the app
+   is running) for console/network errors, and `sdb dlog` for lower-level
+   Tizen platform logs.
+
+USB installation is not supported by Samsung for security reasons — it's
+network-only, hence the IP/Developer Mode dance above.
 
 ## Project structure
 
