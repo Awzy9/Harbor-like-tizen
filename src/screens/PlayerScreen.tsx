@@ -68,7 +68,9 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
   });
 
   useEffect(() => {
-    if (!containerRef.current || !stream.url) return;
+    if (!containerRef.current) return;
+    if (stream.protocol === "http" && !stream.url) return;
+    if (stream.protocol === "torrent" && !stream.infoHash) return;
     const player = new TizenVideoPlayer(containerRef.current);
     playerRef.current = player;
     hasResumedRef.current = false;
@@ -94,7 +96,11 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
       }
     });
 
-    player.load(stream.url);
+    if (stream.protocol === "torrent" && stream.infoHash) {
+      player.loadTorrent(stream.infoHash, stream.fileIdx, stream.sources);
+    } else if (stream.url) {
+      player.load(stream.url);
+    }
     player.play();
 
     return () => {
@@ -118,7 +124,7 @@ export function PlayerScreen({ stream, contentId, episodeId, title, type, poster
       if (activeVttUrlRef.current) URL.revokeObjectURL(activeVttUrlRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stream.url]);
+  }, [stream.url, stream.infoHash]);
 
   useEffect(() => {
     const interval = setInterval(() => {

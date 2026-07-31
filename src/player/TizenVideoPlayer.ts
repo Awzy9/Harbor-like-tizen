@@ -1,16 +1,33 @@
+import type Hls from "hls.js";
+import type { MediaPlayerClass } from "dashjs";
 import type { AudioTrackInfo, PlaybackState, SubtitleTrackInfo } from "@/types/player";
 import { checkPlaybackCompatibility } from "./PlaybackCompatibility";
 import { listAudioTracks, selectAudioTrack } from "./AudioManager";
+import { TorrentStreamManager } from "./TorrentStreamManager";
 
 export type PlaybackStateListener = (state: PlaybackState) => void;
 export type TimeUpdateListener = (time: { currentTime: number; duration: number }) => void;
 
 /**
  * Thin wrapper around HTML5 <video> — the first-pass playback backend per
- * docs/PROJECT_PLAN.md section 20. Deliberately does NOT pull in hls.js or
- * dash.js yet: Tizen's WebKit has native HLS support on most TV generations,
- * so a dedicated MSE/DASH backend only gets added once a real stream proves
- * native playback insufficient (section 22).
+ * docs/PROJECT_PLAN.md section 20. Native playback is always tried first for
+ * HLS (Tizen's WebKit has native HLS support on most TV generations —
+ * section 22); hls.js/dash.js (both MSE-based) are the fallback for
+ * platforms without native support (virtually all of them, for DASH).
+ *
+ * Both libraries are loaded via dynamic import() rather than a static
+ * top-level import: statically importing dash.js in particular pushed the
+ * app's single JS bundle from ~190KB to ~1.6MB, meaning every screen —
+ * Home, Search, Settings, none of which ever touch video — paid the cost of
+ * downloading and parsing a full DASH player on a TV's limited CPU. With
+ * dynamic import, that cost is only paid the moment a stream actually needs
+ * it, and normal HTTP/native-HLS playback (the common case) never fetches
+ * either library at all.
+ *
+ * infoHash-based (torrent) Stremio streams go through loadTorrent() instead,
+ * which hands the same <video> element to TorrentStreamManager/WebTorrent
+ * rather than setting .src directly — see that module for why it's a
+ * best-effort path in a browser context.
  *
  * Status changes (loading/playing/paused/ended/error) and time updates are
  * deliberately separate subscriptions: `timeupdate` fires several times a
@@ -25,6 +42,13 @@ export class TizenVideoPlayer {
   private statusListeners = new Set<PlaybackStateListener>();
   private timeListeners = new Set<TimeUpdateListener>();
   private state: PlaybackState = { status: "idle", currentTime: 0, duration: 0 };
+  private hls: Hls | undefined;
+  private dash: MediaPlayerClass | undefined;
+  private torrent: TorrentStreamManager | undefined;
+  /** Bumped on every load()/stop() so a slow, superseded dynamic import can't attach itself after a newer load() has already moved on. */
+  private loadToken = 0;
+  private mseBackendLoading = false;
+  private pendingPlay = false;
 
   constructor(container: HTMLElement) {
     this.video = document.createElement("video");
@@ -73,10 +97,36 @@ export class TizenVideoPlayer {
     return this.state;
   }
 
+  /** Exposed only for backends that need to drive the <video> element directly (see TorrentStreamManager). */
+  getVideoElement(): HTMLVideoElement {
+    return this.video;
+  }
+
   load(url: string): void {
+    this.destroyBackends();
+    const token = this.loadToken;
+
     const compatibility = checkPlaybackCompatibility(url);
     if (compatibility.verdict === "UNSUPPORTED") {
       this.setStatus({ status: "error", error: `Unsupported stream: ${compatibility.reason}` });
+      return;
+    }
+
+    // Cheap, library-free check for whether it's even worth fetching
+    // hls.js/dash.js — both are MSE-based, so no MediaSource means neither
+    // could work regardless of what their own (much heavier) isSupported()
+    // checks would say.
+    const mseAvailable = typeof MediaSource !== "undefined";
+
+    if (compatibility.protocol === "hls" && !compatibility.preferNative && mseAvailable) {
+      this.loadWithHls(url, token).catch((err: unknown) => this.reportMseLoadError(token, "HLS", err));
+      return;
+    }
+
+    if (compatibility.protocol === "dash" && mseAvailable) {
+      // DASH has essentially no native browser/TV support, unlike HLS —
+      // always route it through dash.js rather than trying <video> first.
+      this.loadWithDash(url, token).catch((err: unknown) => this.reportMseLoadError(token, "DASH", err));
       return;
     }
 
@@ -84,7 +134,106 @@ export class TizenVideoPlayer {
     this.video.load();
   }
 
+  /**
+   * Plays an infoHash-based Stremio stream via WebTorrent instead of
+   * <video>.src — see TorrentStreamManager for why this is a best-effort
+   * path (no DHT in-browser) rather than a guaranteed-to-work one.
+   */
+  loadTorrent(infoHash: string, fileIdx: number | undefined, sources: string[] | undefined): void {
+    this.destroyBackends();
+    const token = this.loadToken;
+    this.setStatus({ status: "loading" });
+
+    const manager = new TorrentStreamManager();
+    this.torrent = manager;
+    manager.render(this.video, infoHash, fileIdx, sources).catch((err: unknown) => {
+      if (token !== this.loadToken) return; // superseded by a newer load()/stop()
+      const message = err instanceof Error ? err.message : String(err);
+      this.setStatus({ status: "error", error: `Torrent error: ${message}` });
+    });
+  }
+
+  private async loadWithHls(url: string, token: number): Promise<void> {
+    this.mseBackendLoading = true;
+    const { default: Hls } = await import("hls.js");
+    if (token !== this.loadToken) return; // superseded by a newer load()/stop() while the import was in flight
+
+    if (!Hls.isSupported()) {
+      this.mseBackendLoading = false;
+      this.video.src = url;
+      this.video.load();
+      this.flushPendingPlay();
+      return;
+    }
+
+    const hls = new Hls();
+    this.hls = hls;
+    hls.on(Hls.Events.ERROR, (_event, data) => {
+      if (!data.fatal) return; // hls.js recovers from most non-fatal errors (segment retries, etc.) on its own
+      this.setStatus({ status: "error", error: `HLS error: ${data.details}` });
+    });
+    hls.loadSource(url);
+    hls.attachMedia(this.video);
+    this.mseBackendLoading = false;
+    this.flushPendingPlay();
+  }
+
+  private async loadWithDash(url: string, token: number): Promise<void> {
+    this.mseBackendLoading = true;
+    const { MediaPlayer } = await import("dashjs");
+    if (token !== this.loadToken) return;
+
+    const dash = MediaPlayer().create();
+    this.dash = dash;
+    dash.on("error", (e: unknown) => {
+      this.setStatus({ status: "error", error: `DASH error: ${describeDashError(e)}` });
+    });
+    dash.initialize(this.video, url, false);
+    this.mseBackendLoading = false;
+    this.flushPendingPlay();
+  }
+
+  /** Catches anything the dynamic import itself throws (e.g. the chunk failing to fetch/parse) — otherwise that's a silent unhandled rejection with no UI feedback at all. */
+  private reportMseLoadError(token: number, backend: "HLS" | "DASH", err: unknown): void {
+    this.mseBackendLoading = false;
+    if (token !== this.loadToken) return;
+    const message = err instanceof Error ? err.message : String(err);
+    this.setStatus({ status: "error", error: `${backend} backend failed to load: ${message}` });
+  }
+
+  private flushPendingPlay(): void {
+    if (this.pendingPlay) {
+      this.pendingPlay = false;
+      this.play();
+    }
+  }
+
+  private destroyBackends(): void {
+    this.loadToken += 1;
+    this.mseBackendLoading = false;
+    if (this.hls) {
+      this.hls.destroy();
+      this.hls = undefined;
+    }
+    if (this.dash) {
+      this.dash.destroy();
+      this.dash = undefined;
+    }
+    if (this.torrent) {
+      this.torrent.destroy();
+      this.torrent = undefined;
+    }
+  }
+
   play(): void {
+    // A dynamic-imported HLS/DASH backend may still be attaching — calling
+    // video.play() before that finishes would just reject with nothing to
+    // play, and once attached nothing auto-starts since we don't set
+    // autoplay. Defer instead so it actually plays once ready.
+    if (this.mseBackendLoading) {
+      this.pendingPlay = true;
+      return;
+    }
     // play() returns a Promise that rejects with AbortError if pause() (or a
     // new load()) interrupts it before it resolves — expected under rapid
     // play/pause toggling (including React StrictMode's mount/unmount/
@@ -96,6 +245,7 @@ export class TizenVideoPlayer {
   }
 
   pause(): void {
+    this.pendingPlay = false;
     this.video.pause();
   }
 
@@ -138,6 +288,8 @@ export class TizenVideoPlayer {
   }
 
   stop(): void {
+    this.destroyBackends();
+    this.pendingPlay = false;
     this.video.pause();
     this.video.removeAttribute("src");
     this.video.load();
@@ -161,6 +313,19 @@ export class TizenVideoPlayer {
     const time = { currentTime: this.state.currentTime, duration: this.state.duration };
     for (const listener of this.timeListeners) listener(time);
   }
+}
+
+/** dash.js "error" events aren't consistently shaped — sometimes {error: "download"}, sometimes {error: {code, message}} — so this digs for whatever's most useful rather than risking "[object Object]". */
+function describeDashError(e: unknown): string {
+  if (!e || typeof e !== "object" || !("error" in e)) return "unknown";
+  const inner = (e as { error: unknown }).error;
+  if (typeof inner === "string") return inner;
+  if (inner && typeof inner === "object") {
+    const withMessage = inner as { message?: unknown; code?: unknown };
+    if (typeof withMessage.message === "string") return withMessage.message;
+    if (withMessage.code !== undefined) return `code ${String(withMessage.code)}`;
+  }
+  return "unknown";
 }
 
 function describeMediaError(error: MediaError | null): string {

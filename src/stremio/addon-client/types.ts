@@ -66,6 +66,8 @@ export interface Stream {
   ytId?: string;
   infoHash?: string;
   fileIdx?: number;
+  /** Tracker/DHT hints for infoHash streams, e.g. "tracker:wss://..." or "dht:<nodeId>" — see docs/PROJECT_PLAN.md section 11. */
+  sources?: string[];
   name?: string;
   title?: string;
   description?: string;

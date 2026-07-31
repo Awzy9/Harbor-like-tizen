@@ -16,7 +16,12 @@ export interface PlaybackProgress {
 }
 
 export interface ResolvedStream {
+  /** "http" streams always have `url`; "torrent" streams always have `infoHash` — see StreamNormalizer. */
+  protocol: "http" | "torrent";
   url?: string;
+  infoHash?: string;
+  fileIdx?: number;
+  sources?: string[];
   type?: string;
   name?: string;
   title?: string;

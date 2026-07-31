@@ -1,10 +1,13 @@
 export type CompatibilityVerdict = "SUPPORTED" | "UNSUPPORTED" | "UNKNOWN";
+export type StreamProtocol = "hls" | "dash" | "torrent" | "direct";
 
 export interface CompatibilityResult {
   verdict: CompatibilityVerdict;
-  protocol: "hls" | "dash" | "direct";
+  protocol: StreamProtocol;
   mimeType: string;
   reason?: string;
+  /** true when native <video> playback should be tried before reaching for hls.js/dash.js. */
+  preferNative: boolean;
 }
 
 /**
@@ -19,28 +22,31 @@ export function checkPlaybackCompatibility(url: string): CompatibilityResult {
   const mimeType = mimeTypeFor(protocol, url);
 
   if (typeof document === "undefined") {
-    return { verdict: "UNKNOWN", protocol, mimeType };
+    return { verdict: "UNKNOWN", protocol, mimeType, preferNative: true };
   }
 
   const probe = document.createElement("video");
   const support = probe.canPlayType(mimeType);
+  const preferNative = support === "probably" || support === "maybe";
 
-  if (support === "probably" || support === "maybe") {
-    return { verdict: "SUPPORTED", protocol, mimeType };
+  if (preferNative) {
+    return { verdict: "SUPPORTED", protocol, mimeType, preferNative: true };
   }
 
   if (protocol === "hls" || protocol === "dash") {
-    // Many Tizen versions support HLS/DASH via native MSE even when
-    // canPlayType() on the manifest mimetype comes back empty, so treat
-    // this as unknown rather than a hard failure — see docs/PROJECT_PLAN.md
-    // section 22.
-    return { verdict: "UNKNOWN", protocol, mimeType, reason: "canPlayType inconclusive for adaptive streams" };
+    // Native canPlayType() coming back empty doesn't mean unplayable for
+    // adaptive streams — Tizen has native HLS on many TV generations even
+    // when this probe is inconclusive (docs/PROJECT_PLAN.md section 22),
+    // and where native support genuinely is missing, TizenVideoPlayer falls
+    // back to hls.js/dash.js (MSE-based), so this is UNKNOWN rather than a
+    // hard failure either way.
+    return { verdict: "UNKNOWN", protocol, mimeType, preferNative: false, reason: "canPlayType inconclusive for adaptive streams" };
   }
 
-  return { verdict: "UNSUPPORTED", protocol, mimeType, reason: `canPlayType("${mimeType}") = ""` };
+  return { verdict: "UNSUPPORTED", protocol, mimeType, preferNative: false, reason: `canPlayType("${mimeType}") = ""` };
 }
 
-function detectProtocol(url: string): CompatibilityResult["protocol"] {
+function detectProtocol(url: string): StreamProtocol {
   const path = url.split("?")[0].toLowerCase();
   if (path.endsWith(".m3u8")) return "hls";
   if (path.endsWith(".mpd")) return "dash";

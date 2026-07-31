@@ -263,6 +263,8 @@ Don't just assign `video.src` and hope. `PlaybackCompatibility` analyzes URL/MIM
 
 Test HLS first (native support on most Tizen versions). Don't add a heavyweight playback library until a real compatibility problem is identified.
 
+**Update:** DASH has essentially no native browser/TV support (unlike HLS), so it's the "real compatibility problem" this guidance anticipated — `TizenVideoPlayer` tries native `<video>` first for HLS and always routes DASH through dash.js. Both hls.js and dash.js are loaded via dynamic `import()`, not a static top-level import: statically importing dash.js alone pushed the main bundle from ~190KB to ~1.6MB, which every screen would have paid for regardless of whether it ever touches video. See `src/player/TizenVideoPlayer.ts`.
+
 ## 23. Subtitles
 
 Add-ons can expose subtitle resources; Samsung's HTML5 video supports WebVTT via `<track>`. Convert other formats (SRT/ASS/SSA) where legally and technically appropriate — don't assume native support for everything.
@@ -435,7 +437,9 @@ Don't imply official Stremio ownership or affiliation. Harbor itself is explicit
 
 ## 50. Initial MVP
 
-Tizen install, TV UI, remote control, Stremio account linking, add-on sync, manifest loading, catalogs, metadata, search, stream selection, basic playback, resume, basic subtitles, settings. Not yet: advanced recommendations, AI, torrent engine, custom download manager, complex transcoding, advanced shaders, cross-device casting.
+Tizen install, TV UI, remote control, Stremio account linking, add-on sync, manifest loading, catalogs, metadata, search, stream selection, basic playback, resume, basic subtitles, settings. Not yet: advanced recommendations, AI, custom download manager, complex transcoding, advanced shaders, cross-device casting.
+
+**Update:** a torrent playback path (WebTorrent, best-effort, WSS-trackers-only — see `src/player/TorrentStreamManager.ts` and the README's Video player section) was added in this repo alongside hls.js/dash.js adaptive-streaming support, ahead of where this MVP list originally put it.
 
 ## 51. Phase 2 Features
 
@@ -518,10 +522,10 @@ App launches on Samsung OLED and can be signed/installed; remote navigation, Hom
 14. Implement add-on synchronization. **(done — one-way pull/push via addonCollectionGet/addonCollectionSet, not a bidirectional merge)**
 15. Implement library synchronization. **(not started — Stremio's library-sync API is a separate delta-sync endpoint outside this research pass)**
 16. Implement stream resolution. **(done — StreamResolver/Normalizer + Stream Selection screen)**
-17. Build the Samsung TV video player. **(HTML5-video baseline done in this repo)**
+17. Build the Samsung TV video player. **(done — HTML5-video baseline + hls.js/dash.js MSE fallback + WebTorrent for torrent/infoHash streams, all dynamically imported so non-video screens never pay for them)**
 18. Test direct MP4 playback. **(done in a real browser; needs real-TV verification)**
-19. Test HLS. **(external test stream wired into Test Player; real HLS support unverified without a Tizen TV)**
-20. Test DASH/MSE where applicable.
+19. Test HLS. **(hls.js integrated with a native-first fallback; wiring/error-path verified against a public test stream, but this sandbox's outbound network policy blocks every candidate CDN at the TLS layer, so actual segment-level decode is unverified — real HLS support (native or hls.js) unverified without a Tizen TV)**
+20. Test DASH/MSE where applicable. **(dash.js integrated the same way; same sandbox network caveat as HLS above — unverified without real network access or a Tizen TV)**
 21. Implement subtitles. **(done — SubtitleAggregator + SRT-to-VTT conversion + Player screen panel; ASS/SSA intentionally unsupported)**
 22. Implement audio selection. **(done — AudioManager wraps AudioTrackList; UI only appears when >1 track is actually reported)**
 23. Implement resume. **(done — position saved every ~7s + on pause/unmount, resumed on reopen)**

@@ -65,10 +65,14 @@ What's implemented:
   queries every catalog that declares a `search` extra, deduplicated across
   add-ons.
 - **Stream resolution** (`src/stremio/streams/`) — `StreamResolver` collects
-  streams across add-ons per title/episode, `StreamNormalizer` drops
-  non-http(s) streams (no torrent engine/YouTube embedding by design),
-  `StreamRanker` scores by parsed quality/HDR text heuristics. Stream
-  Selection and Player screens wire this into actual playback.
+  streams across add-ons per title/episode. `StreamNormalizer` keeps both
+  direct http(s) streams and torrent/infoHash streams (tagged
+  `protocol: "http" | "torrent"`); YouTube-ID-only streams are still dropped
+  (no YouTube embedding by design). `StreamRanker` scores by parsed
+  quality/HDR text heuristics, ranking torrent streams below an equivalent
+  direct URL since torrents need peer discovery before anything plays. Stream
+  Selection (which shows a "Torrent" badge) and Player screens wire this into
+  actual playback.
 - **Stremio account login + add-on sync** (`src/stremio/account/`) — email/password
   login and one-way add-on pull/push against `api.strem.io`, implemented
   against the contract confirmed by reading Stremio's own officially-maintained
@@ -83,9 +87,28 @@ What's implemented:
   for the full reasoning.
 - **Video player** (`src/player/TizenVideoPlayer.ts`) — a `<video>` wrapper
   (load/play/pause/seek/setVolume/setSubtitle/setAudio/stop/destroy) plus a
-  lightweight `PlaybackCompatibility` pre-flight check. No HLS.js/DASH.js yet
-  on purpose — Tizen's native HLS support is the first thing to prove out
-  before reaching for a heavier library. **Resume** (`src/storage/playbackProgress.ts`)
+  lightweight `PlaybackCompatibility` pre-flight check. Native `<video>` is
+  always tried first for HLS (Tizen's WebKit has native HLS on most TV
+  generations); **hls.js** and **dash.js** are loaded via dynamic `import()`
+  as MSE-based fallbacks for everything else (virtually all DASH, and any HLS
+  the platform can't play natively) — dynamic import keeps both libraries out
+  of the main bundle entirely until a stream actually needs one, so
+  Home/Search/Settings never pay for code they don't use. **Torrent/infoHash
+  streams** play via `loadTorrent()` → `src/player/TorrentStreamManager.ts`
+  (WebTorrent), which builds a magnet URI from the stream's `infoHash` +
+  `sources` and renders the largest video file straight into the same
+  `<video>` element. This is a genuinely best-effort path, not a full
+  BitTorrent client: WebTorrent's browser build ships with DHT compiled out
+  entirely (`bittorrent-dht: false` in its own `package.json`), so peer
+  discovery depends solely on WSS (WebSocket Secure) trackers and WebSeeds —
+  the plain UDP/HTTP tracker hints most add-ons list are silently unusable
+  in-browser. A 25s peer-discovery timeout guarantees the UI surfaces a real
+  error instead of spinning forever when no WSS peers are reachable.
+  Shipping WebTorrent through Vite's Rollup-based build also required
+  several small workarounds in `vite.config.ts` and `scripts/shims/` for
+  places where WebTorrent's dependency tree relies on webpack/browserify
+  browser-field conventions that Vite doesn't apply the same way — each is
+  commented in place with why it's safe. **Resume** (`src/storage/playbackProgress.ts`)
   saves position (plus denormalized addon/type/title/poster context) every
   ~7s and on pause/unmount, and seeks back on reopening the same title. A
   **Continue Watching** row on Home surfaces every in-progress (non-finished)
@@ -114,8 +137,9 @@ What's implemented:
   requests (needed for `<video>` seeking).
 - **Test screens** (now under Settings → Developer Tools) — Test Remote (live
   key-event log + a focusable grid) and Test Player (loads a bundled local
-  clip plus an external HLS test stream) validate the remote-nav and
-  playback pipelines in isolation.
+  clip, external HLS/DASH test streams, and a public-domain torrent —
+  WebTorrent's own long-standing Sintel demo, with WSS trackers attached)
+  validate the remote-nav and playback pipelines in isolation.
 - **Crash/offline resilience** — a root `ErrorBoundary` (`src/app/ErrorBoundary.tsx`)
   catches render errors app-wide, plus a per-screen boundary keyed by screen
   identity so a crash on one screen (e.g. an add-on returning malformed
@@ -135,6 +159,24 @@ cross-add-on metadata/catalog merging (currently first-success-wins / one row
 per add-on+catalog, not deduplicated across add-ons), ASS/SSA subtitle
 conversion, image/list virtualization for large catalogs, and TV
 packaging/signing.
+
+**Playback verification limits (development sandbox):** this project was
+developed in a sandboxed environment whose outbound network policy blocks
+every public HLS/DASH test CDN tried (including Apple's, Akamai's, and
+Mux's) and every WSS BitTorrent tracker, at the TLS layer. That means HLS,
+DASH, and torrent playback here have only been verified up to the point
+network access is required — code paths, error handling, and the "no
+infinite spinner" guarantee (a 25s peer-discovery timeout for torrents) are
+confirmed correct, but actual segment-level HLS/DASH decoding and torrent
+peer connections are not verified end-to-end in this environment. This is
+stated rather than glossed over; treat those three paths as needing a real
+network (or a real Tizen TV) before being called production-ready.
+Separately, WebTorrent's dependency tree (`bittorrent-tracker` →
+`torrent-discovery` → the `ip` package) carries a known high-severity SSRF
+advisory in `ip`'s `isPublic()` check (`npm audit`); the advisory's primary
+concern is server-side SSRF, which doesn't directly apply to a
+browser-bundled client, but it's disclosed here rather than silently
+accepted — re-run `npm audit` before shipping to see current status.
 
 ## Requirements
 

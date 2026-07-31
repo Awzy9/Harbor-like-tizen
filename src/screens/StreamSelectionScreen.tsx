@@ -61,7 +61,7 @@ export function StreamSelectionScreen({ type, id, title, poster, nextEpisode }: 
               >
                 <div className="stream-selection-screen__item-title">{stream.title ?? stream.name ?? "Stream"}</div>
                 <div className="text-dim stream-selection-screen__item-meta">
-                  {[stream.quality, addonName].filter(Boolean).join(" · ")}
+                  {[stream.quality, stream.protocol === "torrent" ? "Torrent" : undefined, addonName].filter(Boolean).join(" · ")}
                 </div>
               </FocusableItem>
             );
