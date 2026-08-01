@@ -17,7 +17,7 @@
     <icon src="icon.png"/>
     <content src="index.html"/>
 
-    <tizen:profile name="tv"/>
+    <tizen:profile name="tv-samsung"/>
 
     <tizen:privilege name="http://tizen.org/privilege/internet"/>
     <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
@@ -30,5 +30,5 @@
                    install-location="auto"
                    hwkey-event="enable"/>
 
-    <feature name="http://tizen.org/feature/screen.size.normal.d"/>
+    <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
 </widget>
